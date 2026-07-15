@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:steam-client}",
+            "name": "Debug SteamClient",
+            "target": "SteamClient",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug SteamClient"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:steam-client}",
+            "name": "Release SteamClient",
+            "target": "SteamClient",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release SteamClient"
+        }
+    ]
+}
