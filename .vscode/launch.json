@@ -5,20 +5,20 @@
             "request": "launch",
             "args": [],
             "cwd": "${workspaceFolder:steam-client}",
-            "name": "Debug SteamClient",
-            "target": "SteamClient",
+            "name": "Debug Mist",
+            "target": "Mist",
             "configuration": "debug",
-            "preLaunchTask": "swift: Build Debug SteamClient"
+            "preLaunchTask": "swift: Build Debug Mist"
         },
         {
             "type": "swift",
             "request": "launch",
             "args": [],
             "cwd": "${workspaceFolder:steam-client}",
-            "name": "Release SteamClient",
-            "target": "SteamClient",
+            "name": "Release Mist",
+            "target": "Mist",
             "configuration": "release",
-            "preLaunchTask": "swift: Build Release SteamClient"
+            "preLaunchTask": "swift: Build Release Mist"
         }
     ]
 }

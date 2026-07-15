@@ -4,6 +4,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
     case library = "Library"
     case friends = "Friends"
     case store = "Store"
+    case community = "Community"
     case profile = "Profile"
 
     var id: String { rawValue }
@@ -13,6 +14,7 @@ enum SidebarSection: String, CaseIterable, Identifiable, Hashable {
         case .library: return "square.grid.2x2"
         case .friends: return "person.2"
         case .store: return "cart"
+        case .community: return "person.3"
         case .profile: return "person.crop.circle"
         }
     }

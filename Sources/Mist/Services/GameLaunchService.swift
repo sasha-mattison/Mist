@@ -38,6 +38,13 @@ enum GameLaunchService {
         NSWorkspace.shared.open(url)
     }
 
+    /// Opens the game's Steam Community hub (discussions, guides, artwork)
+    /// in the browser.
+    static func openCommunityHub(appID: Int) {
+        guard let url = URL(string: "https://steamcommunity.com/app/\(appID)/") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     static func openChat(steamID64: String) {
         guard let url = URL(string: "steam://friends/message/\(steamID64)") else { return }
         NSWorkspace.shared.open(url)

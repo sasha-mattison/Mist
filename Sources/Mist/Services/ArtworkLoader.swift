@@ -69,7 +69,7 @@ actor ArtworkLoader {
     init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        diskCacheURL = caches.appendingPathComponent("SteamClient/artwork", isDirectory: true)
+        diskCacheURL = caches.appendingPathComponent("Mist/artwork", isDirectory: true)
         try? FileManager.default.createDirectory(at: diskCacheURL, withIntermediateDirectories: true)
     }
 

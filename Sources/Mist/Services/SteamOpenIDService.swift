@@ -239,7 +239,7 @@ final class SteamOpenIDService: @unchecked Sendable {
     private static let successPage = page(
         title: "Signed in",
         heading: "✅ Signed in to Steam",
-        detail: "You can close this tab and return to SteamClient."
+        detail: "You can close this tab and return to Mist."
     )
 
     private static let cancelledPage = page(

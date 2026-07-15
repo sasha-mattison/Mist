@@ -19,20 +19,30 @@ enum LibrarySortOrder: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @Environment(GameLibraryStore.self) private var store
     @Environment(SettingsStore.self) private var settings
+    @Environment(AppNavigationModel.self) private var navigation
     @ViewState private var isShowingAPIKeySetup = false
     @ViewState private var isShowingSignIn = false
     @ViewState private var isShowingSettings = false
-    @ViewState private var selectedSidebarSection: SidebarSection = .library
     @ViewState private var navigationPath = NavigationPath()
     @ViewState private var searchText = ""
     @ViewState private var sortOrder: LibrarySortOrder = .recentlyPlayed
     @ViewState private var showInstalledOnly = false
     @ViewState private var showMacOnly = false
 
+    /// Manual binding into the observable navigation model (the @Bindable
+    /// macro isn't available without the SwiftUIMacros plugin, same reason
+    /// @ViewState exists).
+    private var sectionSelection: Binding<SidebarSection> {
+        Binding(
+            get: { navigation.selectedSection },
+            set: { navigation.selectedSection = $0 }
+        )
+    }
+
     var body: some View {
         NavigationSplitView {
             SidebarView(
-                selection: $selectedSidebarSection,
+                selection: sectionSelection,
                 onSignIn: { isShowingSignIn = true }
             )
         } detail: {
@@ -58,7 +68,7 @@ struct ContentView: View {
         .navigationSplitViewStyle(.balanced)
         .tint(settings.accentColor)
         .preferredColorScheme(settings.colorScheme)
-        .onChange(of: selectedSidebarSection) { _, _ in
+        .onChange(of: navigation.selectedSection) { _, _ in
             navigationPath = NavigationPath()
         }
         .task {
@@ -121,13 +131,21 @@ struct ContentView: View {
         // ZStack keeps outgoing/incoming sections alive together so the
         // cross-fade transition can play when switching tabs.
         ZStack {
-            switch selectedSidebarSection {
+            switch navigation.selectedSection {
             case .library:
                 libraryRoot
                     .transition(sectionTransition)
             case .store:
                 StorePage(onOpen: { navigationPath.append($0) })
                     .transition(sectionTransition)
+            case .community:
+                CommunityPage(
+                    onOpenGame: { navigationPath.append($0) },
+                    onOpenStoreItem: { navigationPath.append($0) },
+                    onSignIn: { isShowingSignIn = true },
+                    onSetupAPIKey: { isShowingAPIKeySetup = true }
+                )
+                .transition(sectionTransition)
             case .friends:
                 FriendsPage(
                     onSignIn: { isShowingSignIn = true },
@@ -146,7 +164,7 @@ struct ContentView: View {
         }
         .animation(
             settings.animationsEnabled ? .smooth(duration: 0.3) : nil,
-            value: selectedSidebarSection
+            value: navigation.selectedSection
         )
     }
 

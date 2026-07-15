@@ -2,14 +2,14 @@
 import PackageDescription
 
 let package = Package(
-    name: "SteamClient",
+    name: "Mist",
     platforms: [
         .macOS("26.0")
     ],
     targets: [
         .executableTarget(
-            name: "SteamClient",
-            path: "Sources/SteamClient"
+            name: "Mist",
+            path: "Sources/Mist"
         )
     ]
 )

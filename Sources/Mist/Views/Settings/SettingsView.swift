@@ -66,6 +66,10 @@ struct SettingsView: View {
 
     private var footer: some View {
         HStack {
+            Text("Mist \(AppVersion.display)")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .textSelection(.enabled)
             if tab == .appearance {
                 Button("Reset to Defaults") { settings.resetToDefaults() }
             }

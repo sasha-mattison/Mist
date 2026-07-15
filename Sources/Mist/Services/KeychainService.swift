@@ -3,7 +3,10 @@ import Security
 
 /// Stores the user's personal Steam Web API key in the macOS Keychain.
 enum KeychainService {
-    private static let service = "com.steamclient.webapikey"
+    private static let service = "dev.sasha.Mist.webapikey"
+    /// Pre-rename service id (the app used to be "SteamClient"); read as a
+    /// fallback and migrated forward so existing users stay signed in.
+    private static let legacyService = "com.steamclient.webapikey"
     private static let account = "steamWebAPIKey"
 
     enum KeychainError: Error, LocalizedError {
@@ -34,6 +37,16 @@ enum KeychainService {
     }
 
     static func loadAPIKey() -> String? {
+        if let key = loadAPIKey(service: service) {
+            return key
+        }
+        // Migrate a key saved under the old app name to the new service id.
+        guard let legacyKey = loadAPIKey(service: legacyService) else { return nil }
+        try? saveAPIKey(legacyKey)
+        return legacyKey
+    }
+
+    private static func loadAPIKey(service: String) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

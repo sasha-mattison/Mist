@@ -16,6 +16,9 @@ final class GameLibraryStore {
     /// reliable "currently running" signal, so this is the single place the
     /// grid, detail view, and menu bar all read live play state from.
     private(set) var runningAppID: Int?
+    /// When the current play session started (i.e. when runningAppID last
+    /// transitioned from nil/another app). Drives the menu bar's session timer.
+    private(set) var runningSince: Date?
     /// SteamID64 the user explicitly signed in with (OpenID flow). Takes
     /// precedence over accounts detected from loginusers.vdf.
     private(set) var signedInSteamID64: String?
@@ -105,6 +108,9 @@ final class GameLibraryStore {
     }
 
     func setRunningAppID(_ appID: Int?) {
+        if appID != runningAppID {
+            runningSince = appID == nil ? nil : Date()
+        }
         runningAppID = appID
     }
 

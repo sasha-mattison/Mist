@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
-// Generates Resources/AppIcon.iconset PNGs (run once, then `iconutil -c icns`
-// via Scripts/build-app.sh). Draws a simple gradient rounded-square glyph —
-// a placeholder "modern, sleek" mark, not final brand art.
+// Generates Resources/AppIcon.iconset PNGs (run once, then
+// `iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns`).
+// Mist brand mark: a white fog glyph over a cool blue-gray dusk gradient.
 import AppKit
 import Foundation
 
@@ -30,13 +30,13 @@ func drawIcon(size: Int) -> NSImage {
     let path = NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius)
 
     let gradient = NSGradient(colors: [
-        NSColor(calibratedRed: 0.10, green: 0.13, blue: 0.32, alpha: 1.0),
-        NSColor(calibratedRed: 0.20, green: 0.45, blue: 0.85, alpha: 1.0)
+        NSColor(calibratedRed: 0.13, green: 0.17, blue: 0.28, alpha: 1.0),
+        NSColor(calibratedRed: 0.42, green: 0.58, blue: 0.78, alpha: 1.0)
     ])
-    gradient?.draw(in: path, angle: -45)
+    gradient?.draw(in: path, angle: -60)
 
     let symbolConfig = NSImage.SymbolConfiguration(pointSize: CGFloat(size) * 0.52, weight: .semibold)
-    if let symbol = NSImage(systemSymbolName: "gamecontroller.fill", accessibilityDescription: nil)?
+    if let symbol = NSImage(systemSymbolName: "cloud.fog.fill", accessibilityDescription: nil)?
         .withSymbolConfiguration(symbolConfig) {
         let symbolSize = symbol.size
         let symbolRect = NSRect(

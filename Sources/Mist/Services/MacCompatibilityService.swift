@@ -21,7 +21,7 @@ actor MacCompatibilityService {
     init() {
         let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
-        let dir = caches.appendingPathComponent("SteamClient", isDirectory: true)
+        let dir = caches.appendingPathComponent("Mist", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         cacheFileURL = dir.appendingPathComponent("mac-compatibility.json")
 
