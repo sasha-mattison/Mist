@@ -40,6 +40,12 @@ plus a menu bar quick-launcher that's always one click away.
 - **Theming** — light/dark/system appearance, 20+ accent presets or a custom
   color, quick themes, ambient tinted background, and a master switch for
   the motion layer.
+- **Notifications** — opt-in local notifications (all off by default) for a
+  game session ending, a friend coming online, an installed game updating,
+  and a wishlist item going on sale.
+- **In-app updates** — Mist checks GitHub for new releases (daily, or on
+  demand from Settings) and can download, verify, and install one with a
+  single click, relaunching automatically when it's done.
 - **Account** — sign in with Steam or switch between multiple locally
   detected accounts, and optionally launch Mist at login.
 
@@ -58,6 +64,7 @@ plus a menu bar quick-launcher that's always one click away.
 ```bash
 bash Scripts/build-app.sh            # debug build
 bash Scripts/build-app.sh release    # release build
+bash Scripts/make-dmg.sh             # release build + installable .dmg
 ```
 
 The script runs `swift build`, wraps the binary into `Mist.app` by hand
@@ -66,16 +73,30 @@ installs the result to `/Applications/Mist.app`. Set `MIST_SKIP_INSTALL=1`
 to build without touching /Applications. The build artifact also remains at
 `.build/Mist.app`.
 
+`Scripts/make-dmg.sh` does a clean release build and stages a copy with
+extended attributes, ACLs, and `.DS_Store` stripped before imaging it, so a
+handed-off `.dmg` (`.build/dist/Mist-<version>.dmg`) carries no trace of this
+machine or user.
+
 VS Code launch configurations for plain debug/release binary runs are in
 `.vscode/launch.json`.
 
-## Versioning
+## Versioning & releases
 
 - `VERSION` holds the marketing version (semver) — edit it to cut a release.
 - The build number is the git commit count at build time.
 - Both are stamped into the app's `Info.plist` by `Scripts/build-app.sh` and
-  shown in Settings' footer ("Mist 0.3.0 (3)").
+  shown in Settings' footer ("Mist 0.4.0 (7)").
 - Release history lives in [CHANGELOG.md](CHANGELOG.md).
+- `Scripts/release.sh` publishes a release: builds a `.dmg` and a `.zip`,
+  extracts that version's `CHANGELOG.md` section as release notes, tags the
+  commit, and runs `gh release create` (requires the
+  [GitHub CLI](https://cli.github.com), authenticated via `gh auth login`).
+  Bump `VERSION` and add a `CHANGELOG.md` entry first — the script checks
+  for both.
+- Mist itself polls [GitHub Releases](https://github.com/sasha-mattison/Mist/releases)
+  for newer versions (Settings ▸ General ▸ Updates) and can install one
+  in place — see "In-app updates" above.
 
 ## Project layout
 
@@ -84,11 +105,15 @@ Sources/Mist/
   App/        AppDelegate, main-menu commands, navigation model, migrations
   Models/     Decodable API models & view models (library, store, community)
   Services/   Steam Web API, storefront, community/news, local VDF parsing,
-              keychain, game launching, artwork & compatibility caches
+              keychain, game launching, artwork & compatibility caches,
+              local notifications, wishlist sale monitor, GitHub update
+              checker & installer
   Stores/     @Observable state: library, friends, profile, community, settings
   Views/      SwiftUI pages (Library, Store, Community, Friends, Profile),
               menu bar extra, settings, shared components & effects
-Scripts/      build-app.sh (bundle assembly + install), generate-icon.swift
+Scripts/      build-app.sh (bundle assembly + install), make-dmg.sh (dmg
+              packaging), release.sh (GitHub release publishing),
+              generate-icon.swift
 Resources/    Info.plist, AppIcon
 ```
 
