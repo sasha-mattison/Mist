@@ -14,6 +14,7 @@ struct SettingsView: View {
 
     private enum Tab: String, CaseIterable, Identifiable {
         case appearance = "Appearance"
+        case general = "General"
         case account = "Account"
 
         var id: String { rawValue }
@@ -21,6 +22,7 @@ struct SettingsView: View {
         var systemImage: String {
             switch self {
             case .appearance: return "paintbrush"
+            case .general: return "gearshape"
             case .account: return "person.crop.circle"
             }
         }
@@ -36,6 +38,7 @@ struct SettingsView: View {
                 Group {
                     switch tab {
                     case .appearance: appearanceTab
+                    case .general: generalTab
                     case .account: accountTab
                     }
                 }
@@ -59,7 +62,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(maxWidth: 320)
+            .frame(maxWidth: 420)
         }
         .padding(.top, 20)
         .padding(.bottom, 14)
@@ -90,8 +93,62 @@ struct SettingsView: View {
             themeSection
             accentSection
             effectsSection
-            generalSection
             previewSection
+        }
+    }
+
+    // MARK: - General tab
+
+    private var generalTab: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            generalSection
+            notificationsSection
+        }
+    }
+
+    private var notificationsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Notifications")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 10) {
+                effectsToggle(
+                    "Game session ended",
+                    subtitle: "How long you played, right after you quit.",
+                    isOn: Binding(
+                        get: { settings.notifySessionEnded },
+                        set: { settings.notifySessionEnded = $0 }
+                    )
+                )
+                Divider()
+                effectsToggle(
+                    "Friends coming online",
+                    subtitle: "When a friend who was offline comes online.",
+                    isOn: Binding(
+                        get: { settings.notifyFriendOnline },
+                        set: { settings.notifyFriendOnline = $0 }
+                    )
+                )
+                Divider()
+                effectsToggle(
+                    "Game updates",
+                    subtitle: "When an installed game downloads a new update.",
+                    isOn: Binding(
+                        get: { settings.notifyGameUpdates },
+                        set: { settings.notifyGameUpdates = $0 }
+                    )
+                )
+                Divider()
+                effectsToggle(
+                    "Wishlist sales",
+                    subtitle: "When something on your wishlist goes on sale (checked hourly).",
+                    isOn: Binding(
+                        get: { settings.notifyWishlistSales },
+                        set: { settings.notifyWishlistSales = $0 }
+                    )
+                )
+            }
+            .padding(14)
+            .glassEffect(in: .rect(cornerRadius: 14))
         }
     }
 

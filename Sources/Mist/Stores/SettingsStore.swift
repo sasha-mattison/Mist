@@ -158,6 +158,10 @@ final class SettingsStore {
         static let animationsEnabled = "settings.animationsEnabled"
         static let hotKeyCode = "settings.hotKeyCode"
         static let hotKeyModifiers = "settings.hotKeyModifiers"
+        static let notifySessionEnded = "settings.notifySessionEnded"
+        static let notifyFriendOnline = "settings.notifyFriendOnline"
+        static let notifyGameUpdates = "settings.notifyGameUpdates"
+        static let notifyWishlistSales = "settings.notifyWishlistSales"
     }
 
     var appearance: AppearanceMode {
@@ -204,6 +208,37 @@ final class SettingsStore {
         return Self.displayString(keyCode: hotKeyCode, modifiers: hotKeyModifiers)
     }
 
+    /// Notification toggles — all off by default (never opt someone into
+    /// system notifications without them asking). Turning any of these on
+    /// triggers the one-time system authorization prompt.
+    var notifySessionEnded: Bool {
+        didSet {
+            UserDefaults.standard.set(notifySessionEnded, forKey: Keys.notifySessionEnded)
+            if notifySessionEnded { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
+    var notifyFriendOnline: Bool {
+        didSet {
+            UserDefaults.standard.set(notifyFriendOnline, forKey: Keys.notifyFriendOnline)
+            if notifyFriendOnline { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
+    var notifyGameUpdates: Bool {
+        didSet {
+            UserDefaults.standard.set(notifyGameUpdates, forKey: Keys.notifyGameUpdates)
+            if notifyGameUpdates { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
+    var notifyWishlistSales: Bool {
+        didSet {
+            UserDefaults.standard.set(notifyWishlistSales, forKey: Keys.notifyWishlistSales)
+            if notifyWishlistSales { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
     var accentColor: Color {
         useCustomAccent ? customAccent : accentPreset.color
     }
@@ -222,6 +257,10 @@ final class SettingsStore {
         customAccent = Self.loadColor(forKey: Keys.customAccent) ?? AccentPreset.steamBlue.color
         tintedBackground = defaults.object(forKey: Keys.tintedBackground) as? Bool ?? true
         animationsEnabled = defaults.object(forKey: Keys.animationsEnabled) as? Bool ?? true
+        notifySessionEnded = defaults.bool(forKey: Keys.notifySessionEnded)
+        notifyFriendOnline = defaults.bool(forKey: Keys.notifyFriendOnline)
+        notifyGameUpdates = defaults.bool(forKey: Keys.notifyGameUpdates)
+        notifyWishlistSales = defaults.bool(forKey: Keys.notifyWishlistSales)
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
         if let savedCode = defaults.object(forKey: Keys.hotKeyCode) as? Int,

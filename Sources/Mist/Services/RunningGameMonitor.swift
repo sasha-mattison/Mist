@@ -61,6 +61,8 @@ final class RunningGameMonitor {
     func refresh() {
         guard let store else { return }
         let runningPaths = NSWorkspace.shared.runningApplications.compactMap { $0.bundleURL?.path }
+        let previousAppID = store.runningAppID
+        let previousSince = store.runningSince
 
         for item in store.libraryItems where item.isInstalled {
             guard let installPath = item.installURL?.path else { continue }
@@ -68,6 +70,15 @@ final class RunningGameMonitor {
                 store.setRunningAppID(item.appID)
                 return
             }
+        }
+
+        // Nothing installed is running anymore — if something was a moment
+        // ago, that's a real session ending (not just some unrelated app
+        // quitting, since the loop above would have re-matched it otherwise).
+        if let previousAppID, let previousSince,
+           let endedItem = store.libraryItems.first(where: { $0.appID == previousAppID }) {
+            let minutes = Int(Date().timeIntervalSince(previousSince) / 60)
+            NotificationService.shared.notifySessionEnded(gameName: endedItem.name, minutes: minutes)
         }
         store.setRunningAppID(nil)
     }

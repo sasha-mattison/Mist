@@ -31,6 +31,8 @@ struct MistApp: App {
         self.navigation = AppNavigationModel()
         self.runningGameMonitor = RunningGameMonitor(store: store)
         self.localDataWatcher = SteamLocalDataWatcher(store: store)
+        NotificationService.shared.settings = settings
+        WishlistSaleMonitor.shared.start(store: store)
     }
 
     // IMPORTANT: scene root content must stay a single unmodified view.

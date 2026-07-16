@@ -40,6 +40,10 @@ struct WishlistView: View {
         } catch {
             self.error = error.localizedDescription
         }
+        // Cheap: both the wishlist and each item's storefront details are
+        // already cached, so this just catches a sale immediately instead of
+        // waiting for the monitor's next hourly tick.
+        await WishlistSaleMonitor.shared.checkOnce()
     }
 
     private var header: some View {

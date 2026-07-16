@@ -161,7 +161,8 @@ struct SteamLocalDataService {
             installDir: installDir,
             sizeOnDisk: sizeOnDisk,
             lastPlayed: lastPlayed,
-            libraryPath: libraryPath
+            libraryPath: libraryPath,
+            buildID: fields["buildid"]?.stringValue
         )
     }
 }

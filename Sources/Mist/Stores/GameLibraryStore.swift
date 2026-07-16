@@ -101,6 +101,7 @@ final class GameLibraryStore {
 
     func refreshLocal() {
         guard let dataService else { return }
+        let previousBuildIDs = Dictionary(uniqueKeysWithValues: installedApps.map { ($0.appID, $0.buildID) })
         do {
             accounts = try dataService.loadAccounts()
             let libraries = try dataService.loadLibraryFolders()
@@ -111,8 +112,24 @@ final class GameLibraryStore {
         } catch {
             loadError = error.localizedDescription
         }
+        notifyOfGameUpdates(previousBuildIDs: previousBuildIDs)
         refreshCollections()
         rebuildLibraryItems()
+    }
+
+    /// Compares each installed app's build id against what it was before
+    /// this refresh — Steam bumps it on every update. Skipped on the very
+    /// first load (nothing to compare against yet, which would otherwise
+    /// "detect" an update for every already-installed game).
+    private func notifyOfGameUpdates(previousBuildIDs: [Int: String?]) {
+        guard !previousBuildIDs.isEmpty else { return }
+        for app in installedApps {
+            guard let newBuildID = app.buildID,
+                  let previousEntry = previousBuildIDs[app.appID],
+                  let oldBuildID = previousEntry,
+                  oldBuildID != newBuildID else { continue }
+            NotificationService.shared.notifyGameUpdateAvailable(gameName: app.name)
+        }
     }
 
     private func refreshCollections() {

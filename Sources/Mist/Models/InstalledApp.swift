@@ -13,6 +13,10 @@ struct InstalledApp: Identifiable, Hashable {
     let sizeOnDisk: Int64
     let lastPlayed: Date?
     let libraryPath: String
+    /// Steam's content-build identifier, bumped every time the game is
+    /// updated — used to detect "this game was just updated" by diffing
+    /// across refreshes, not for anything else.
+    let buildID: String?
 
     var id: Int { appID }
 

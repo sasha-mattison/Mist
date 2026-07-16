@@ -62,6 +62,14 @@ final class FriendsStore {
         isLoading = true
         defer { isLoading = false }
 
+        // Captured before overwriting `friends` so newly-online friends (not
+        // just "online right now") can be told apart for notifications —
+        // including on the very first load, when nothing was known to be
+        // online yet and nobody should be notified about.
+        let previouslyOnline = lastRefreshed == nil ? nil : Set(
+            friends.filter { $0.group != .offline }.map(\.steamID64)
+        )
+
         let client = SteamWebAPIClient(apiKey: apiKey)
         do {
             let entries = try await client.getFriendList(steamID64: steamID64)
@@ -80,6 +88,12 @@ final class FriendsStore {
                 .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
             error = nil
             lastRefreshed = Date()
+
+            if let previouslyOnline {
+                for friend in friends where friend.group != .offline && !previouslyOnline.contains(friend.steamID64) {
+                    NotificationService.shared.notifyFriendOnline(name: friend.displayName)
+                }
+            }
         } catch {
             self.error = error.localizedDescription
         }
