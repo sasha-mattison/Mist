@@ -64,6 +64,15 @@ final class NotificationService {
         )
     }
 
+    func notifyUpdateAvailable(version: String) {
+        guard settings?.notifyAppUpdates == true else { return }
+        post(
+            id: "app-update.\(version)",
+            title: "Mist \(version) is available",
+            body: "Click to view details."
+        )
+    }
+
     private func post(id: String, title: String, body: String) {
         let content = UNMutableNotificationContent()
         content.title = title

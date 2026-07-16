@@ -162,6 +162,10 @@ final class SettingsStore {
         static let notifyFriendOnline = "settings.notifyFriendOnline"
         static let notifyGameUpdates = "settings.notifyGameUpdates"
         static let notifyWishlistSales = "settings.notifyWishlistSales"
+        static let autoCheckForUpdates = "settings.autoCheckForUpdates"
+        static let notifyAppUpdates = "settings.notifyAppUpdates"
+        static let lastUpdateCheckDate = "settings.lastUpdateCheckDate"
+        static let skippedUpdateVersion = "settings.skippedUpdateVersion"
     }
 
     var appearance: AppearanceMode {
@@ -239,6 +243,32 @@ final class SettingsStore {
         }
     }
 
+    /// Whether Mist itself should periodically check GitHub for a newer
+    /// release. On by default — unlike the notification toggles above, this
+    /// isn't a system permission prompt, just a background network poll.
+    var autoCheckForUpdates: Bool {
+        didSet { UserDefaults.standard.set(autoCheckForUpdates, forKey: Keys.autoCheckForUpdates) }
+    }
+
+    /// Separate from `notifyGameUpdates` (installed Steam games updating) —
+    /// this is specifically about Mist's own releases.
+    var notifyAppUpdates: Bool {
+        didSet {
+            UserDefaults.standard.set(notifyAppUpdates, forKey: Keys.notifyAppUpdates)
+            if notifyAppUpdates { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
+    var lastUpdateCheckDate: Date? {
+        didSet { UserDefaults.standard.set(lastUpdateCheckDate, forKey: Keys.lastUpdateCheckDate) }
+    }
+
+    /// Release tag the user dismissed via "Skip This Version" — cleared
+    /// automatically once a newer tag appears.
+    var skippedUpdateVersion: String? {
+        didSet { UserDefaults.standard.set(skippedUpdateVersion, forKey: Keys.skippedUpdateVersion) }
+    }
+
     var accentColor: Color {
         useCustomAccent ? customAccent : accentPreset.color
     }
@@ -261,6 +291,10 @@ final class SettingsStore {
         notifyFriendOnline = defaults.bool(forKey: Keys.notifyFriendOnline)
         notifyGameUpdates = defaults.bool(forKey: Keys.notifyGameUpdates)
         notifyWishlistSales = defaults.bool(forKey: Keys.notifyWishlistSales)
+        autoCheckForUpdates = defaults.object(forKey: Keys.autoCheckForUpdates) as? Bool ?? true
+        notifyAppUpdates = defaults.object(forKey: Keys.notifyAppUpdates) as? Bool ?? true
+        lastUpdateCheckDate = defaults.object(forKey: Keys.lastUpdateCheckDate) as? Date
+        skippedUpdateVersion = defaults.string(forKey: Keys.skippedUpdateVersion)
         launchAtLogin = SMAppService.mainApp.status == .enabled
 
         if let savedCode = defaults.object(forKey: Keys.hotKeyCode) as? Int,

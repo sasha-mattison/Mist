@@ -102,7 +102,110 @@ struct SettingsView: View {
     private var generalTab: some View {
         VStack(alignment: .leading, spacing: 28) {
             generalSection
+            updatesSection
             notificationsSection
+        }
+    }
+
+    private var updatesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Updates")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 10) {
+                effectsToggle(
+                    "Automatically check for updates",
+                    subtitle: "Look for a new Mist release once a day.",
+                    isOn: Binding(
+                        get: { settings.autoCheckForUpdates },
+                        set: { settings.autoCheckForUpdates = $0 }
+                    )
+                )
+                Divider()
+                effectsToggle(
+                    "Notify when an update is available",
+                    subtitle: "A system notification when a newer version is found.",
+                    isOn: Binding(
+                        get: { settings.notifyAppUpdates },
+                        set: { settings.notifyAppUpdates = $0 }
+                    )
+                )
+                Divider()
+                checkNowRow
+                if let release = UpdateChecker.shared.availableRelease {
+                    Divider()
+                    availableUpdateRow(release)
+                }
+                if let error = UpdateChecker.shared.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                if let error = UpdateInstaller.shared.installError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(14)
+            .glassEffect(in: .rect(cornerRadius: 14))
+        }
+    }
+
+    private var checkNowRow: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Check for updates")
+                    .font(.callout.weight(.medium))
+                Text(lastCheckedCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button(UpdateChecker.shared.isChecking ? "Checking…" : "Check Now") {
+                Task { await UpdateChecker.shared.checkOnce() }
+            }
+            .disabled(UpdateChecker.shared.isChecking)
+        }
+    }
+
+    private var lastCheckedCaption: String {
+        guard let date = settings.lastUpdateCheckDate else { return "Never checked." }
+        return "Last checked \(date.formatted(date: .abbreviated, time: .shortened))."
+    }
+
+    private func availableUpdateRow(_ release: GitHubRelease) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Mist \(release.name ?? release.tagName) is available")
+                .font(.callout.weight(.semibold))
+            if let body = release.body, !body.isEmpty {
+                Text(body)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(6)
+            }
+            if let phase = UpdateInstaller.shared.phase {
+                HStack(spacing: 8) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(phase.label)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Button("Install Update") {
+                        Task { await UpdateInstaller.shared.install(release) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("View on GitHub") {
+                        NSWorkspace.shared.open(release.htmlURL)
+                    }
+                    Button("Skip This Version") {
+                        UpdateChecker.shared.skip(release)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 

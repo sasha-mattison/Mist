@@ -33,6 +33,8 @@ struct MistApp: App {
         self.localDataWatcher = SteamLocalDataWatcher(store: store)
         NotificationService.shared.settings = settings
         WishlistSaleMonitor.shared.start(store: store)
+        UpdateChecker.shared.settings = settings
+        UpdateChecker.shared.start()
     }
 
     // IMPORTANT: scene root content must stay a single unmodified view.
