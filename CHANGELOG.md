@@ -4,6 +4,20 @@ Versions follow [semver](https://semver.org); the marketing version lives in
 the `VERSION` file and the build number is the git commit count, both stamped
 into the app bundle by `Scripts/build-app.sh`.
 
+## 0.4.0 — 2026-07-16
+
+- **In-app updates** — Mist now checks GitHub for new releases (once a day,
+  or on demand from Settings), and can download, verify, and install one
+  with a single click, relaunching automatically when it's done.
+- **Notifications** — opt-in local notifications (all off by default) for a
+  game session ending, a friend coming online, an installed game updating,
+  and a wishlist item going on sale, each with its own toggle.
+- Settings is now split into **Appearance** and **General** tabs — theming
+  stays on its own, while launch-at-login, the global hotkey, and
+  notifications live together in General.
+- New `Scripts/make-dmg.sh` produces a clean, installable `.dmg` for
+  sharing builds with other people.
+
 ## 0.3.0 — 2026-07-15
 
 - **Friend profiles now open in-app** instead of redirecting to a browser —
