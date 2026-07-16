@@ -28,6 +28,9 @@ struct ContentView: View {
     @ViewState private var sortOrder: LibrarySortOrder = .recentlyPlayed
     @ViewState private var showInstalledOnly = false
     @ViewState private var showMacOnly = false
+    @ViewState private var selectedCollectionID: String?
+    @ViewState private var isShowingBacklog = false
+    @ViewState private var isShowingStorage = false
 
     /// Manual binding into the observable navigation model (the @Bindable
     /// macro isn't available without the SwiftUIMacros plugin, same reason
@@ -53,6 +56,13 @@ struct ContentView: View {
                     }
                     .navigationDestination(for: StoreAppLink.self) { link in
                         StoreDetailPage(link: link)
+                    }
+                    .navigationDestination(for: FriendProfileLink.self) { link in
+                        FriendProfilePage(
+                            link: link,
+                            onOpenGame: { navigationPath.append($0) },
+                            onOpenStoreItem: { navigationPath.append($0) }
+                        )
                     }
                     .toolbar { settingsToolbar }
             }
@@ -92,6 +102,20 @@ struct ContentView: View {
             SettingsView(
                 onDismiss: { isShowingSettings = false },
                 onSignIn: presentSignInSoon
+            )
+        }
+        .sheet(isPresented: $isShowingBacklog) {
+            BacklogView(
+                items: store.libraryItems,
+                onOpenGame: { navigationPath.append($0) },
+                onDismiss: { isShowingBacklog = false }
+            )
+        }
+        .sheet(isPresented: $isShowingStorage) {
+            StorageManagerView(
+                items: store.libraryItems,
+                onOpenGame: { navigationPath.append($0) },
+                onDismiss: { isShowingStorage = false }
             )
         }
     }
@@ -136,12 +160,16 @@ struct ContentView: View {
                 libraryRoot
                     .transition(sectionTransition)
             case .store:
-                StorePage(onOpen: { navigationPath.append($0) })
-                    .transition(sectionTransition)
+                StorePage(
+                    onOpen: { navigationPath.append($0) },
+                    onSignIn: { isShowingSignIn = true }
+                )
+                .transition(sectionTransition)
             case .community:
                 CommunityPage(
                     onOpenGame: { navigationPath.append($0) },
                     onOpenStoreItem: { navigationPath.append($0) },
+                    onOpenProfile: { navigationPath.append($0) },
                     onSignIn: { isShowingSignIn = true },
                     onSetupAPIKey: { isShowingAPIKeySetup = true }
                 )
@@ -149,7 +177,8 @@ struct ContentView: View {
             case .friends:
                 FriendsPage(
                     onSignIn: { isShowingSignIn = true },
-                    onSetupAPIKey: { isShowingAPIKeySetup = true }
+                    onSetupAPIKey: { isShowingAPIKeySetup = true },
+                    onOpenProfile: { navigationPath.append($0) }
                 )
                 .transition(sectionTransition)
             case .profile:
@@ -181,6 +210,10 @@ struct ContentView: View {
         }
         if showMacOnly {
             items = items.filter { store.isMacPlayable($0) }
+        }
+        if let selectedCollectionID, let collection = store.collections.first(where: { $0.id == selectedCollectionID }) {
+            let ids = Set(collection.appIDs)
+            items = items.filter { ids.contains($0.appID) }
         }
         let query = searchText.trimmingCharacters(in: .whitespaces)
         if !query.isEmpty {
@@ -259,9 +292,34 @@ struct ContentView: View {
                         if enabled { store.resolveMacSupport() }
                     }
                 ))
+                if !store.collections.isEmpty {
+                    Divider()
+                    Picker("Collection", selection: $selectedCollectionID) {
+                        Text("All Games").tag(String?.none)
+                        ForEach(store.collections) { collection in
+                            Text(collection.name).tag(String?.some(collection.id))
+                        }
+                    }
+                }
             } label: {
                 Label("Sort & Filter", systemImage: "line.3.horizontal.decrease")
             }
+        }
+        ToolbarItem {
+            Button {
+                isShowingBacklog = true
+            } label: {
+                Label("What Should I Play?", systemImage: "shuffle")
+            }
+            .help("What Should I Play?")
+        }
+        ToolbarItem {
+            Button {
+                isShowingStorage = true
+            } label: {
+                Label("Storage", systemImage: "internaldrive")
+            }
+            .help("Storage")
         }
         ToolbarItem {
             if KeychainService.loadAPIKey() == nil {

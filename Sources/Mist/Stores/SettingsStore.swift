@@ -1,5 +1,7 @@
 import AppKit
+import Carbon.HIToolbox
 import Observation
+import ServiceManagement
 import SwiftUI
 
 enum AppearanceMode: String, CaseIterable, Identifiable {
@@ -154,6 +156,8 @@ final class SettingsStore {
         static let customAccent = "settings.customAccentRGBA"
         static let tintedBackground = "settings.tintedBackground"
         static let animationsEnabled = "settings.animationsEnabled"
+        static let hotKeyCode = "settings.hotKeyCode"
+        static let hotKeyModifiers = "settings.hotKeyModifiers"
     }
 
     var appearance: AppearanceMode {
@@ -183,6 +187,23 @@ final class SettingsStore {
         didSet { UserDefaults.standard.set(animationsEnabled, forKey: Keys.animationsEnabled) }
     }
 
+    /// Source of truth is SMAppService itself (not UserDefaults) — the user
+    /// can also toggle this from System Settings ▸ General ▸ Login Items,
+    /// so a locally-cached preference could drift from what's actually
+    /// registered.
+    private(set) var launchAtLogin: Bool
+    private(set) var launchAtLoginError: String?
+
+    /// Global "summon Mist" shortcut. Carbon registrations don't persist
+    /// across launches, so a saved combo is re-registered in `init()`.
+    private(set) var hotKeyCode: UInt32?
+    private(set) var hotKeyModifiers: UInt32?
+
+    var hotKeyDisplayString: String? {
+        guard let hotKeyCode, let hotKeyModifiers else { return nil }
+        return Self.displayString(keyCode: hotKeyCode, modifiers: hotKeyModifiers)
+    }
+
     var accentColor: Color {
         useCustomAccent ? customAccent : accentPreset.color
     }
@@ -201,6 +222,76 @@ final class SettingsStore {
         customAccent = Self.loadColor(forKey: Keys.customAccent) ?? AccentPreset.steamBlue.color
         tintedBackground = defaults.object(forKey: Keys.tintedBackground) as? Bool ?? true
         animationsEnabled = defaults.object(forKey: Keys.animationsEnabled) as? Bool ?? true
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+
+        if let savedCode = defaults.object(forKey: Keys.hotKeyCode) as? Int,
+           let savedModifiers = defaults.object(forKey: Keys.hotKeyModifiers) as? Int {
+            hotKeyCode = UInt32(savedCode)
+            hotKeyModifiers = UInt32(savedModifiers)
+            GlobalHotKeyService.shared.register(keyCode: UInt32(savedCode), modifiers: UInt32(savedModifiers)) {
+                AppWindowCoordinator.shared.showMainWindow()
+            }
+        }
+    }
+
+    /// Registers (or, passing nil, clears) the global "summon Mist" shortcut.
+    func setHotKey(keyCode: UInt32?, modifiers: UInt32?) {
+        hotKeyCode = keyCode
+        hotKeyModifiers = modifiers
+        if let keyCode, let modifiers {
+            UserDefaults.standard.set(Int(keyCode), forKey: Keys.hotKeyCode)
+            UserDefaults.standard.set(Int(modifiers), forKey: Keys.hotKeyModifiers)
+            GlobalHotKeyService.shared.register(keyCode: keyCode, modifiers: modifiers) {
+                AppWindowCoordinator.shared.showMainWindow()
+            }
+        } else {
+            UserDefaults.standard.removeObject(forKey: Keys.hotKeyCode)
+            UserDefaults.standard.removeObject(forKey: Keys.hotKeyModifiers)
+            GlobalHotKeyService.shared.unregister()
+        }
+    }
+
+    /// Common keys only (letters, digits, a few named keys) — good enough
+    /// for the vast majority of hotkey choices; anything else falls back to
+    /// a numeric label rather than mistranslating it.
+    private static let keyCodeNames: [UInt32: String] = [
+        0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V",
+        11: "B", 12: "Q", 13: "W", 14: "E", 15: "R", 16: "Y", 17: "T",
+        18: "1", 19: "2", 20: "3", 21: "4", 22: "6", 23: "5", 24: "=", 25: "9", 26: "7",
+        27: "-", 28: "8", 29: "0", 30: "]", 31: "O", 32: "U", 33: "[", 34: "I", 35: "P",
+        37: "L", 38: "J", 39: "'", 40: "K", 41: ";", 42: "\\", 43: ",", 44: "/", 45: "N",
+        46: "M", 47: ".",
+        36: "↩", 48: "⇥", 49: "Space", 51: "⌫", 53: "⎋",
+        123: "←", 124: "→", 125: "↓", 126: "↑",
+        122: "F1", 120: "F2", 99: "F3", 118: "F4", 96: "F5", 97: "F6",
+        98: "F7", 100: "F8", 101: "F9", 109: "F10", 103: "F11", 111: "F12"
+    ]
+
+    private static func displayString(keyCode: UInt32, modifiers: UInt32) -> String {
+        var result = ""
+        if modifiers & UInt32(controlKey) != 0 { result += "⌃" }
+        if modifiers & UInt32(optionKey) != 0 { result += "⌥" }
+        if modifiers & UInt32(shiftKey) != 0 { result += "⇧" }
+        if modifiers & UInt32(cmdKey) != 0 { result += "⌘" }
+        result += keyCodeNames[keyCode] ?? "Key \(keyCode)"
+        return result
+    }
+
+    /// Registers/unregisters the app as a login item via SMAppService. The
+    /// user approves this once in System Settings ▸ General ▸ Login Items;
+    /// no paid Developer Program entitlement is required.
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            launchAtLoginError = nil
+        } catch {
+            launchAtLoginError = error.localizedDescription
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
     }
 
     func apply(_ preset: ThemePreset) {

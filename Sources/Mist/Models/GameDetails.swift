@@ -18,6 +18,7 @@ struct GameDetails: Decodable {
     let website: String?
     let isFree: Bool?
     let priceOverview: PriceOverview?
+    let dlc: [Int]?
 
     struct Genre: Decodable, Hashable {
         let description: String
@@ -111,6 +112,7 @@ struct GameDetails: Decodable {
         case website
         case isFree = "is_free"
         case priceOverview = "price_overview"
+        case dlc
     }
 
     /// `about_the_game` arrives as storefront HTML; the detail page renders

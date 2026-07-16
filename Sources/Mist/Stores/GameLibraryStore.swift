@@ -6,6 +6,7 @@ import Observation
 final class GameLibraryStore {
     private(set) var installedApps: [InstalledApp] = []
     private(set) var accounts: [SteamAccount] = []
+    private(set) var collections: [GameCollection] = []
     private(set) var libraryItems: [GameLibraryItem] = []
     private(set) var playerSummary: PlayerSummary?
     private(set) var loadError: String?
@@ -22,6 +23,10 @@ final class GameLibraryStore {
     /// SteamID64 the user explicitly signed in with (OpenID flow). Takes
     /// precedence over accounts detected from loginusers.vdf.
     private(set) var signedInSteamID64: String?
+    /// User's explicit choice among locally-detected accounts, used only
+    /// when there's no OpenID sign-in — lets a multi-account machine pick
+    /// something other than whichever account happens to be auto-login.
+    private(set) var preferredLocalSteamID64: String?
     /// Storefront verdicts for "runs natively on macOS", filled from
     /// MacCompatibilityService's disk cache at launch and streamed in while
     /// resolution runs. Installed games are implicitly compatible and are
@@ -35,9 +40,11 @@ final class GameLibraryStore {
     private let dataService: SteamLocalDataService?
 
     private static let signedInDefaultsKey = "signedInSteamID64"
+    private static let preferredLocalDefaultsKey = "preferredLocalSteamID64"
 
     init() {
         signedInSteamID64 = UserDefaults.standard.string(forKey: Self.signedInDefaultsKey)
+        preferredLocalSteamID64 = UserDefaults.standard.string(forKey: Self.preferredLocalDefaultsKey)
         if let root = SteamPathResolver.resolveSteamRoot() {
             dataService = SteamLocalDataService(steamRoot: root)
             isSteamFound = true
@@ -47,16 +54,21 @@ final class GameLibraryStore {
         }
     }
 
-    /// Identity used for all Web API calls: an explicit sign-in wins, else
-    /// fall back to the local Steam install's auto-login account.
+    /// Identity used for all Web API calls: an explicit sign-in wins, else an
+    /// explicit local-account choice (if it still exists), else fall back to
+    /// the local Steam install's auto-login account.
     var activeSteamID64: String? {
-        signedInSteamID64
-            ?? (accounts.first(where: { $0.isAutoLogin }) ?? accounts.first)?.steamID64
+        if let signedInSteamID64 { return signedInSteamID64 }
+        if let preferredLocalSteamID64, accounts.contains(where: { $0.steamID64 == preferredLocalSteamID64 }) {
+            return preferredLocalSteamID64
+        }
+        return (accounts.first(where: { $0.isAutoLogin }) ?? accounts.first)?.steamID64
     }
 
     func completeSignIn(steamID64: String) {
         signedInSteamID64 = steamID64
         UserDefaults.standard.set(steamID64, forKey: Self.signedInDefaultsKey)
+        refreshCollections()
     }
 
     func signOut() {
@@ -65,6 +77,25 @@ final class GameLibraryStore {
         playerSummary = nil
         ownedGamesByAppID = [:]
         remoteError = nil
+        refreshCollections()
+        rebuildLibraryItems()
+    }
+
+    /// Sets which locally-detected account to use when not signed in with
+    /// Steam. Pass nil to go back to the auto-login default. Clears
+    /// remote-derived state so a stale identity's data isn't shown under the
+    /// new one; callers should follow up with `refreshRemote()`.
+    func setPreferredLocalAccount(steamID64: String?) {
+        preferredLocalSteamID64 = steamID64
+        if let steamID64 {
+            UserDefaults.standard.set(steamID64, forKey: Self.preferredLocalDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.preferredLocalDefaultsKey)
+        }
+        playerSummary = nil
+        ownedGamesByAppID = [:]
+        remoteError = nil
+        refreshCollections()
         rebuildLibraryItems()
     }
 
@@ -80,7 +111,16 @@ final class GameLibraryStore {
         } catch {
             loadError = error.localizedDescription
         }
+        refreshCollections()
         rebuildLibraryItems()
+    }
+
+    private func refreshCollections() {
+        guard let dataService, let steamID64 = activeSteamID64 else {
+            collections = []
+            return
+        }
+        collections = dataService.loadCollections(steamID64: steamID64)
     }
 
     func refreshRemote() async {

@@ -4,6 +4,7 @@ import SwiftUI
 /// coming soon) from the unauthenticated storefront API, with live search.
 struct StorePage: View {
     let onOpen: (StoreAppLink) -> Void
+    let onSignIn: () -> Void
 
     @Environment(GameLibraryStore.self) private var store
     @ViewState private var featured: FeaturedCategories?
@@ -12,6 +13,7 @@ struct StorePage: View {
     @ViewState private var searchResults: [StoreSearchResult] = []
     @ViewState private var isSearching = false
     @ViewState private var reloadToken = 0
+    @ViewState private var isShowingWishlist = false
 
     private var isShowingSearch: Bool {
         !searchText.trimmingCharacters(in: .whitespaces).isEmpty
@@ -38,6 +40,27 @@ struct StorePage: View {
         }
         .navigationTitle("Store")
         .searchable(text: $searchText, placement: .toolbar, prompt: "Search the Steam store")
+        .toolbar {
+            ToolbarItem {
+                Button {
+                    isShowingWishlist = true
+                } label: {
+                    Label("Wishlist", systemImage: "heart")
+                }
+                .help("Wishlist")
+            }
+        }
+        .sheet(isPresented: $isShowingWishlist) {
+            WishlistView(
+                steamID64: store.activeSteamID64,
+                onOpenStoreItem: { onOpen($0) },
+                onSignIn: {
+                    isShowingWishlist = false
+                    onSignIn()
+                },
+                onDismiss: { isShowingWishlist = false }
+            )
+        }
         .task(id: reloadToken) {
             loadError = nil
             do {

@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @Environment(GameLibraryStore.self) private var store
     @Environment(FriendsStore.self) private var friendsStore
+    @Environment(ProfileStore.self) private var profileStore
     @Environment(SettingsStore.self) private var settings
 
     private enum Tab: String, CaseIterable, Identifiable {
@@ -89,7 +90,48 @@ struct SettingsView: View {
             themeSection
             accentSection
             effectsSection
+            generalSection
             previewSection
+        }
+    }
+
+    private var generalSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("General")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 10) {
+                effectsToggle(
+                    "Launch at login",
+                    subtitle: "Start Mist automatically when you sign in to your Mac.",
+                    isOn: Binding(
+                        get: { settings.launchAtLogin },
+                        set: { settings.setLaunchAtLogin($0) }
+                    )
+                )
+                if let error = settings.launchAtLoginError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+                Divider()
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Global shortcut")
+                            .font(.callout.weight(.medium))
+                        Text("Summon Mist from anywhere, even when it's not frontmost.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    HotKeyRecorderView(
+                        displayString: settings.hotKeyDisplayString,
+                        onRecord: { keyCode, modifiers in settings.setHotKey(keyCode: keyCode, modifiers: modifiers) },
+                        onClear: { settings.setHotKey(keyCode: nil, modifiers: nil) }
+                    )
+                }
+            }
+            .padding(14)
+            .glassEffect(in: .rect(cornerRadius: 14))
         }
     }
 
@@ -252,7 +294,55 @@ struct SettingsView: View {
     private var accountTab: some View {
         VStack(alignment: .leading, spacing: 28) {
             identitySection
+            localAccountsSection
             apiKeySection
+        }
+    }
+
+    // MARK: - Local account switcher
+
+    @ViewBuilder
+    private var localAccountsSection: some View {
+        if store.accounts.count > 1 {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Local Steam Accounts")
+                    .font(.headline)
+                Text("Used when you're not signed in with Steam above — picks which locally-detected account's library and friends Mist reads.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                VStack(spacing: 0) {
+                    ForEach(Array(store.accounts.enumerated()), id: \.element.id) { index, account in
+                        if index > 0 {
+                            Divider()
+                        }
+                        LocalAccountRow(
+                            account: account,
+                            isSelected: isPreferredLocalAccount(account),
+                            isDisabled: store.signedInSteamID64 != nil,
+                            onSelect: { selectLocalAccount(account) }
+                        )
+                    }
+                }
+                .padding(6)
+                .glassEffect(in: .rect(cornerRadius: 14))
+            }
+        }
+    }
+
+    private func isPreferredLocalAccount(_ account: SteamAccount) -> Bool {
+        if let preferred = store.preferredLocalSteamID64 {
+            return account.steamID64 == preferred
+        }
+        return account.isAutoLogin
+            || account.steamID64 == (store.accounts.first(where: { $0.isAutoLogin }) ?? store.accounts.first)?.steamID64
+    }
+
+    private func selectLocalAccount(_ account: SteamAccount) {
+        store.setPreferredLocalAccount(steamID64: account.steamID64)
+        friendsStore.clear()
+        profileStore.clear()
+        Task {
+            await store.refreshRemote()
         }
     }
 
@@ -396,6 +486,47 @@ private struct APIKeySettingsSection: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+// MARK: - Local account row
+
+private struct LocalAccountRow: View {
+    let account: SteamAccount
+    let isSelected: Bool
+    let isDisabled: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(account.personaName)
+                        .font(.callout.weight(.medium))
+                    Text(account.accountName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.tint)
+                } else if account.isAutoLogin {
+                    Text("Auto-login")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled || isSelected)
+        .opacity(isDisabled ? 0.5 : 1)
     }
 }
 

@@ -13,6 +13,11 @@ struct GameDetailPage: View {
     @ViewState private var storeDetails: GameDetails?
     @ViewState private var isLoadingDetails = true
     @ViewState private var isLaunching = false
+    @ViewState private var reviewSummary: ReviewSummary?
+    @ViewState private var localScreenshots: [URL] = []
+    @ViewState private var achievementProgress: [AchievementProgress]?
+    @ViewState private var isLoadingAchievements = false
+    @ViewState private var isDLCExpanded = false
 
     private var effects: Bool { settings.animationsEnabled }
 
@@ -33,10 +38,16 @@ struct GameDetailPage: View {
                         .entranceEffect(index: 0, enabled: effects)
                     aboutSection
                         .entranceEffect(index: 2, enabled: effects)
-                    screenshotsSection
+                    yourScreenshotsSection
                         .entranceEffect(index: 4, enabled: effects)
-                    informationSection
+                    screenshotsSection
+                        .entranceEffect(index: 5, enabled: effects)
+                    dlcSection
                         .entranceEffect(index: 6, enabled: effects)
+                    achievementsSection
+                        .entranceEffect(index: 7, enabled: effects)
+                    informationSection
+                        .entranceEffect(index: 8, enabled: effects)
                 }
                 .padding(.horizontal, 32)
             }
@@ -51,9 +62,27 @@ struct GameDetailPage: View {
         .task(id: item.appID) {
             async let hero = ArtworkLoader.shared.heroImage(for: item.appID)
             async let details = SteamStoreClient.shared.details(for: item.appID)
+            async let reviews = SteamStoreClient.shared.reviewSummary(for: item.appID)
             heroArtwork = await hero
             storeDetails = await details
+            reviewSummary = await reviews
             isLoadingDetails = false
+
+            localScreenshots = store.activeSteamID64.map {
+                LocalScreenshotService.screenshots(appID: item.appID, steamID64: $0)
+            } ?? []
+
+            if let apiKey = KeychainService.loadAPIKey(), let steamID64 = store.activeSteamID64 {
+                isLoadingAchievements = true
+                achievementProgress = await AchievementService.shared.progress(
+                    appID: item.appID,
+                    steamID64: steamID64,
+                    apiKey: apiKey
+                )
+                isLoadingAchievements = false
+            } else {
+                achievementProgress = nil
+            }
         }
     }
 
@@ -206,6 +235,14 @@ struct GameDetailPage: View {
                         valueColor: metacriticColor(score)
                     )
                 }
+                if let reviewSummary, let percent = reviewSummary.positivePercent {
+                    StatTile(
+                        title: reviewSummary.reviewScoreDescription,
+                        value: "\(percent)%",
+                        systemImage: "hand.thumbsup.fill",
+                        valueColor: reviewColor(percent)
+                    )
+                }
             }
         }
     }
@@ -213,6 +250,12 @@ struct GameDetailPage: View {
     private func metacriticColor(_ score: Int) -> Color {
         if score >= 75 { return .green }
         if score >= 50 { return .orange }
+        return .red
+    }
+
+    private func reviewColor(_ percent: Int) -> Color {
+        if percent >= 80 { return .green }
+        if percent >= 50 { return .orange }
         return .red
     }
 
@@ -246,6 +289,25 @@ struct GameDetailPage: View {
         }
     }
 
+    // MARK: - Your screenshots
+
+    @ViewBuilder
+    private var yourScreenshotsSection: some View {
+        if !localScreenshots.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                SectionHeader(title: "Your Screenshots")
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(localScreenshots, id: \.self) { url in
+                            LocalScreenshotThumbnail(url: url)
+                        }
+                    }
+                }
+                .scrollClipDisabled()
+            }
+        }
+    }
+
     // MARK: - Screenshots
 
     @ViewBuilder
@@ -262,6 +324,79 @@ struct GameDetailPage: View {
                 }
                 .scrollClipDisabled()
             }
+        }
+    }
+
+    // MARK: - DLC
+
+    @ViewBuilder
+    private var dlcSection: some View {
+        if let dlcIDs = storeDetails?.dlc, !dlcIDs.isEmpty {
+            DisclosureGroup(isExpanded: $isDLCExpanded) {
+                VStack(spacing: 6) {
+                    ForEach(dlcIDs, id: \.self) { dlcAppID in
+                        DLCRow(appID: dlcAppID, isOwned: ownedAppIDs.contains(dlcAppID))
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    SectionHeader(title: "DLC")
+                    Spacer()
+                    Text("\(dlcIDs.filter { ownedAppIDs.contains($0) }.count)/\(dlcIDs.count) owned")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private var ownedAppIDs: Set<Int> {
+        Set(store.libraryItems.map(\.appID))
+    }
+
+    // MARK: - Achievements
+
+    @ViewBuilder
+    private var achievementsSection: some View {
+        if let achievementProgress, !achievementProgress.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    SectionHeader(title: "Achievements")
+                    Spacer()
+                    Text("\(achievementProgress.filter(\.achieved).count)/\(achievementProgress.count)")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 260), spacing: 12, alignment: .top)],
+                    alignment: .leading,
+                    spacing: 12
+                ) {
+                    ForEach(sortedAchievements) { progress in
+                        AchievementTile(progress: progress)
+                    }
+                }
+            }
+        } else if isLoadingAchievements {
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Loading achievements…")
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Unlocked achievements first (newest unlock first), then locked ones
+    /// ordered by rarity descending — surfacing the easiest remaining
+    /// achievements first.
+    private var sortedAchievements: [AchievementProgress] {
+        (achievementProgress ?? []).sorted { lhs, rhs in
+            if lhs.achieved != rhs.achieved { return lhs.achieved }
+            if lhs.achieved {
+                return (lhs.unlockDate ?? .distantPast) > (rhs.unlockDate ?? .distantPast)
+            }
+            return (lhs.globalPercent ?? 0) > (rhs.globalPercent ?? 0)
         }
     }
 

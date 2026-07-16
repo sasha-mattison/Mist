@@ -9,6 +9,7 @@ actor SteamStoreClient {
     static let shared = SteamStoreClient()
 
     private var cache: [Int: GameDetails?] = [:]
+    private var reviewCache: [Int: ReviewSummary?] = [:]
     private var featuredCache: (fetchedAt: Date, value: FeaturedCategories)?
     private let session = URLSession.shared
 
@@ -88,6 +89,42 @@ actor SteamStoreClient {
             return nil
         }
         return envelope[String(appID)]?.data
+    }
+
+    /// Positive/negative review summary (no review bodies — `num_per_page=0`
+    /// keeps the payload to just the aggregate), cached like `details(for:)`.
+    func reviewSummary(for appID: Int) async -> ReviewSummary? {
+        if let cached = reviewCache[appID] {
+            return cached
+        }
+        let fetched = await fetchReviewSummary(appID: appID)
+        reviewCache[appID] = fetched
+        return fetched
+    }
+
+    private func fetchReviewSummary(appID: Int) async -> ReviewSummary? {
+        var components = URLComponents(string: "https://store.steampowered.com/appreviews/\(appID)")!
+        components.queryItems = [
+            URLQueryItem(name: "json", value: "1"),
+            URLQueryItem(name: "num_per_page", value: "0"),
+            URLQueryItem(name: "language", value: "all"),
+            URLQueryItem(name: "purchase_type", value: "all")
+        ]
+        guard let url = components.url,
+              let (data, response) = try? await session.data(from: url),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let decoded = try? JSONDecoder().decode(AppReviewsEnvelope.self, from: data) else {
+            return nil
+        }
+        return decoded.querySummary
+    }
+
+    private struct AppReviewsEnvelope: Decodable {
+        let querySummary: ReviewSummary?
+
+        enum CodingKeys: String, CodingKey {
+            case querySummary = "query_summary"
+        }
     }
 
     private struct Envelope: Decodable {

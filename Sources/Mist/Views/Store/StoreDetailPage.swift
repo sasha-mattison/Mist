@@ -12,6 +12,8 @@ struct StoreDetailPage: View {
     @ViewState private var heroArtwork: NSImage?
     @ViewState private var details: GameDetails?
     @ViewState private var isLoading = true
+    @ViewState private var reviewSummary: ReviewSummary?
+    @ViewState private var isDLCExpanded = false
 
     private var effects: Bool { settings.animationsEnabled }
 
@@ -28,6 +30,8 @@ struct StoreDetailPage: View {
                         .entranceEffect(index: 0, enabled: effects)
                     screenshotsSection
                         .entranceEffect(index: 2, enabled: effects)
+                    dlcSection
+                        .entranceEffect(index: 3, enabled: effects)
                     informationSection
                         .entranceEffect(index: 4, enabled: effects)
                 }
@@ -41,8 +45,10 @@ struct StoreDetailPage: View {
         .task(id: link.appID) {
             async let hero = ArtworkLoader.shared.heroImage(for: link.appID)
             async let fetched = SteamStoreClient.shared.details(for: link.appID)
+            async let reviews = SteamStoreClient.shared.reviewSummary(for: link.appID)
             heroArtwork = await hero
             details = await fetched
+            reviewSummary = await reviews
             isLoading = false
         }
     }
@@ -244,6 +250,31 @@ struct StoreDetailPage: View {
         }
     }
 
+    // MARK: - DLC
+
+    @ViewBuilder
+    private var dlcSection: some View {
+        if let dlcIDs = details?.dlc, !dlcIDs.isEmpty {
+            let ownedAppIDs = Set(store.libraryItems.map(\.appID))
+            DisclosureGroup(isExpanded: $isDLCExpanded) {
+                VStack(spacing: 6) {
+                    ForEach(dlcIDs, id: \.self) { dlcAppID in
+                        DLCRow(appID: dlcAppID, isOwned: ownedAppIDs.contains(dlcAppID))
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    SectionHeader(title: "DLC")
+                    Spacer()
+                    Text("\(dlcIDs.filter { ownedAppIDs.contains($0) }.count)/\(dlcIDs.count) owned")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     // MARK: - Information
 
     @ViewBuilder
@@ -270,6 +301,9 @@ struct StoreDetailPage: View {
                     }
                     if let score = details?.metacritic?.score {
                         InfoCell(label: "Metacritic", value: "\(score)")
+                    }
+                    if let reviewSummary, let percent = reviewSummary.positivePercent {
+                        InfoCell(label: "Reviews", value: "\(reviewSummary.reviewScoreDescription) (\(percent)%)")
                     }
                     InfoCell(label: "App ID", value: "\(link.appID)")
                     if let website = details?.website, let url = URL(string: website) {

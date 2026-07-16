@@ -4,6 +4,33 @@ Versions follow [semver](https://semver.org); the marketing version lives in
 the `VERSION` file and the build number is the git commit count, both stamped
 into the app bundle by `Scripts/build-app.sh`.
 
+## 0.3.0 — 2026-07-15
+
+- **Friend profiles now open in-app** instead of redirecting to a browser —
+  full profile page (stats, recently played, most-played) plus a new
+  **Library Comparison** section (games in common / they have / you have,
+  with "you might like" recommendations), reachable from Friends and
+  Community ▸ Friend Activity.
+- Game detail pages gained four new sections: **Steam review score**,
+  **DLC ownership** (lazily loaded, owned/unowned per item), **your own
+  captured screenshots** (read straight off disk, separate from the
+  storefront's marketing screenshots), and **achievements** with unlock
+  state and global rarity percentage.
+- New Library tools: **"What Should I Play?"** (a backlog of owned-but-never-
+  played games with a random-pick roulette) and a **Storage** view ranking
+  installed games by disk usage with Finder/Steam shortcuts.
+- New **Wishlist** view on the Store tab — your Steam wishlist with
+  sale/discount highlighting per item.
+- **Steam Collections** (the modern Library UI's custom collections) can now
+  filter the library, read directly from Steam's local config — best-effort,
+  since the underlying format is undocumented.
+- **Lifetime Stats** view on Profile: total games/hours, % never played,
+  longest since played, and a most-played leaderboard.
+- **Account switcher** in Settings ▸ Account for machines with more than one
+  locally-detected Steam account.
+- **Launch at login** and a customizable **global keyboard shortcut** to
+  summon Mist from anywhere, both in Settings.
+
 ## 0.2.0 — 2026-07-15
 
 - Renamed the project from SteamClient to **Mist**, with a new fog app icon.

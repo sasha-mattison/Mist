@@ -73,6 +73,8 @@ private struct MainWindowRoot: View {
     let settings: SettingsStore
     let navigation: AppNavigationModel
 
+    @Environment(\.openWindow) private var openWindow
+
     var body: some View {
         ContentView()
             .frame(minWidth: 900, minHeight: 600)
@@ -82,6 +84,12 @@ private struct MainWindowRoot: View {
             .environment(communityStore)
             .environment(settings)
             .environment(navigation)
+            .onAppear {
+                // The global hotkey handler runs outside any SwiftUI view
+                // hierarchy, so it can't read @Environment(\.openWindow)
+                // itself — hand it over once here instead.
+                AppWindowCoordinator.shared.openWindow = openWindow
+            }
     }
 }
 

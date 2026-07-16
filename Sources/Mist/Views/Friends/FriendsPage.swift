@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Friends root: grouped presence list (In-Game / Online / Offline) with
@@ -7,6 +6,7 @@ import SwiftUI
 struct FriendsPage: View {
     let onSignIn: () -> Void
     let onSetupAPIKey: () -> Void
+    let onOpenProfile: (FriendProfileLink) -> Void
 
     @Environment(GameLibraryStore.self) private var store
     @Environment(FriendsStore.self) private var friendsStore
@@ -71,7 +71,7 @@ struct FriendsPage: View {
                 if !members.isEmpty {
                     Section("\(group.rawValue) (\(members.count))") {
                         ForEach(members) { friend in
-                            FriendRowView(friend: friend)
+                            FriendRowView(friend: friend, onOpenProfile: onOpenProfile)
                         }
                     }
                 }
@@ -115,6 +115,7 @@ struct FriendsPage: View {
 
 private struct FriendRowView: View {
     let friend: FriendsStore.Friend
+    let onOpenProfile: (FriendProfileLink) -> Void
 
     @Environment(SettingsStore.self) private var settings
     @ViewState private var isHovering = false
@@ -178,10 +179,7 @@ private struct FriendRowView: View {
     }
 
     private func openProfile() {
-        let fallback = "https://steamcommunity.com/profiles/\(friend.steamID64)"
-        if let url = URL(string: friend.summary?.profileURL ?? fallback) {
-            NSWorkspace.shared.open(url)
-        }
+        onOpenProfile(friend.profileLink)
     }
 
     private var avatar: some View {

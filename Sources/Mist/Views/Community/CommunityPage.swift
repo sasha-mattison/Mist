@@ -22,6 +22,7 @@ enum CommunitySection: String, CaseIterable, Identifiable {
 struct CommunityPage: View {
     let onOpenGame: (GameLibraryItem) -> Void
     let onOpenStoreItem: (StoreAppLink) -> Void
+    let onOpenProfile: (FriendProfileLink) -> Void
     let onSignIn: () -> Void
     let onSetupAPIKey: () -> Void
 
@@ -42,6 +43,7 @@ struct CommunityPage: View {
                 CommunityFriendsActivityView(
                     searchText: searchText,
                     onOpenStoreItem: onOpenStoreItem,
+                    onOpenProfile: onOpenProfile,
                     onSignIn: onSignIn,
                     onSetupAPIKey: onSetupAPIKey
                 )

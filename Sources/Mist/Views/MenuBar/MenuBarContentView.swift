@@ -5,7 +5,6 @@ struct MenuBarContentView: View {
     @Environment(GameLibraryStore.self) private var store
     @Environment(FriendsStore.self) private var friendsStore
     @Environment(SettingsStore.self) private var settings
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
 
     @ViewState private var searchText = ""
@@ -153,16 +152,7 @@ struct MenuBarContentView: View {
     /// (the app keeps running for the menu bar extra).
     private func showMainWindow() {
         dismiss()
-        NSApp.activate(ignoringOtherApps: true)
-        let mainWindow = NSApp.windows.first {
-            $0.identifier?.rawValue.hasPrefix(MistApp.mainWindowID) == true
-        }
-        if let mainWindow {
-            if mainWindow.isMiniaturized { mainWindow.deminiaturize(nil) }
-            mainWindow.makeKeyAndOrderFront(nil)
-        } else {
-            openWindow(id: MistApp.mainWindowID)
-        }
+        AppWindowCoordinator.shared.showMainWindow()
     }
 }
 

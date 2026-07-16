@@ -31,6 +31,10 @@ final class FriendsStore {
         var displayName: String {
             summary?.personaName ?? steamID64
         }
+
+        var profileLink: FriendProfileLink {
+            FriendProfileLink(steamID64: steamID64, displayName: displayName, cachedSummary: summary)
+        }
     }
 
     private(set) var friends: [Friend] = []

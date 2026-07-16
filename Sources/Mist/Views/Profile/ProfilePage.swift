@@ -12,6 +12,7 @@ struct ProfilePage: View {
     @Environment(GameLibraryStore.self) private var store
     @Environment(ProfileStore.self) private var profile
     @Environment(SettingsStore.self) private var settings
+    @ViewState private var isShowingStats = false
 
     private var needsAPIKey: Bool { KeychainService.loadAPIKey() == nil }
     private var needsIdentity: Bool { store.activeSteamID64 == nil }
@@ -28,6 +29,14 @@ struct ProfilePage: View {
         .navigationTitle("Profile")
         .toolbar {
             ToolbarItem {
+                Button {
+                    isShowingStats = true
+                } label: {
+                    Label("Lifetime Stats", systemImage: "chart.bar.doc.horizontal")
+                }
+                .disabled(needsAPIKey || needsIdentity)
+            }
+            ToolbarItem {
                 if profile.isLoading {
                     ProgressView().controlSize(.small)
                 } else {
@@ -41,6 +50,14 @@ struct ProfilePage: View {
         }
         .task {
             await profile.refreshIfStale()
+        }
+        .sheet(isPresented: $isShowingStats) {
+            PlaytimeStatsView(
+                items: store.libraryItems,
+                accent: settings.accentColor,
+                onDismiss: { isShowingStats = false },
+                onOpenGame: onOpenGame
+            )
         }
     }
 
@@ -198,7 +215,13 @@ struct ProfilePage: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(spacing: 14) {
                         ForEach(Array(profile.recentGames.enumerated()), id: \.element.id) { index, game in
-                            RecentGameCard(game: game, effects: effects, index: index) {
+                            RecentGameCard(
+                                appID: game.appid,
+                                name: game.name ?? "App \(game.appid)",
+                                subtitle: game.playtime2WeeksMinutes.flatMap { $0 > 0 ? "\(Formatters.playtime(minutes: $0)) past two weeks" : nil },
+                                effects: effects,
+                                index: index
+                            ) {
                                 open(appID: game.appid, name: game.name ?? "App \(game.appid)")
                             }
                         }
@@ -226,7 +249,8 @@ struct ProfilePage: View {
                     ForEach(Array(top.enumerated()), id: \.element.id) { index, item in
                         MostPlayedRow(
                             rank: index + 1,
-                            item: item,
+                            name: item.name,
+                            playtimeMinutes: item.playtimeForeverMinutes,
                             fraction: Double(item.playtimeForeverMinutes) / Double(max(maxMinutes, 1)),
                             accent: settings.accentColor,
                             effects: effects,
@@ -269,140 +293,3 @@ struct ProfilePage: View {
     }
 }
 
-// MARK: - Components
-
-private struct LevelBadge: View {
-    let level: Int
-    let accent: Color
-
-    var body: some View {
-        Text("LVL \(level)")
-            .font(.caption.weight(.bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
-            .background(
-                Capsule().fill(accent.gradient)
-            )
-            .shadow(color: accent.opacity(0.4), radius: 6)
-    }
-}
-
-private struct RecentGameCard: View {
-    let game: RecentGame
-    let effects: Bool
-    let index: Int
-    let onOpen: () -> Void
-
-    @ViewState private var isHovering = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 8) {
-                AsyncImage(url: URL(string: "https://cdn.cloudflare.steamstatic.com/steam/apps/\(game.appid)/header.jpg")) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().aspectRatio(contentMode: .fill)
-                    default:
-                        Rectangle().fill(.quaternary)
-                            .overlay {
-                                Image(systemName: "gamecontroller")
-                                    .font(.title2)
-                                    .foregroundStyle(.secondary)
-                            }
-                    }
-                }
-                .frame(width: 240, height: 112)
-                .shineSweep(trigger: isHovering, enabled: effects)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(game.name ?? "App \(game.appid)")
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
-                    if let recent = game.playtime2WeeksMinutes, recent > 0 {
-                        Text("\(Formatters.playtime(minutes: recent)) past two weeks")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .frame(width: 240)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .hoverTilt(enabled: effects)
-        .scaleEffect(isHovering ? 1.03 : 1.0)
-        .shadow(color: .black.opacity(isHovering ? 0.28 : 0.1), radius: isHovering ? 12 : 4, y: isHovering ? 7 : 2)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isHovering = hovering
-            }
-        }
-        .entranceEffect(index: index, enabled: effects)
-    }
-}
-
-private struct MostPlayedRow: View {
-    let rank: Int
-    let item: GameLibraryItem
-    let fraction: Double
-    let accent: Color
-    let effects: Bool
-    let index: Int
-    let onOpen: () -> Void
-
-    @ViewState private var isHovering = false
-    @ViewState private var barVisible = false
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(spacing: 14) {
-                Text("\(rank)")
-                    .font(.title3.weight(.bold).monospacedDigit())
-                    .foregroundStyle(rank <= 3 ? AnyShapeStyle(accent) : AnyShapeStyle(.tertiary))
-                    .frame(width: 28, alignment: .trailing)
-
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack {
-                        Text(item.name)
-                            .font(.callout.weight(.medium))
-                            .lineLimit(1)
-                        Spacer()
-                        Text(Formatters.playtime(minutes: item.playtimeForeverMinutes))
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                    GeometryReader { geo in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(.quaternary)
-                            Capsule()
-                                .fill(accent.gradient)
-                                .frame(width: geo.size.width * fraction * (barVisible ? 1 : 0))
-                        }
-                    }
-                    .frame(height: 5)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.primary.opacity(isHovering ? 0.06 : 0))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .entranceEffect(index: index, enabled: effects)
-        .onAppear {
-            guard effects else {
-                barVisible = true
-                return
-            }
-            withAnimation(.spring(response: 0.8, dampingFraction: 0.85).delay(Double(index) * 0.06 + 0.15)) {
-                barVisible = true
-            }
-        }
-    }
-}

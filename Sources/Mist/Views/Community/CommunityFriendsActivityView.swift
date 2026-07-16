@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// Live friend activity: in-game friends grouped by the game they're playing
@@ -7,6 +6,7 @@ import SwiftUI
 struct CommunityFriendsActivityView: View {
     let searchText: String
     let onOpenStoreItem: (StoreAppLink) -> Void
+    let onOpenProfile: (FriendProfileLink) -> Void
     let onSignIn: () -> Void
     let onSetupAPIKey: () -> Void
 
@@ -98,7 +98,7 @@ struct CommunityFriendsActivityView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         SectionHeader(title: "Now Playing")
                         ForEach(inGameGroups) { group in
-                            GameGroupCard(group: group) {
+                            GameGroupCard(group: group, onOpenProfile: onOpenProfile) {
                                 if let appID = group.appID {
                                     onOpenStoreItem(StoreAppLink(appID: appID, name: group.name))
                                 }
@@ -111,7 +111,7 @@ struct CommunityFriendsActivityView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         SectionHeader(title: "Online (\(onlineFriends.count))")
                         ForEach(onlineFriends) { friend in
-                            ActivityFriendRow(friend: friend, showsStatus: true)
+                            ActivityFriendRow(friend: friend, showsStatus: true, onOpenProfile: onOpenProfile)
                         }
                     }
                 }
@@ -154,6 +154,7 @@ private struct GameGroup: Identifiable {
 
 private struct GameGroupCard: View {
     let group: GameGroup
+    let onOpenProfile: (FriendProfileLink) -> Void
     let onOpenGame: () -> Void
 
     var body: some View {
@@ -194,7 +195,7 @@ private struct GameGroupCard: View {
 
             VStack(spacing: 0) {
                 ForEach(group.friends) { friend in
-                    ActivityFriendRow(friend: friend, showsStatus: false)
+                    ActivityFriendRow(friend: friend, showsStatus: false, onOpenProfile: onOpenProfile)
                 }
             }
         }
@@ -208,6 +209,7 @@ private struct GameGroupCard: View {
 private struct ActivityFriendRow: View {
     let friend: FriendsStore.Friend
     let showsStatus: Bool
+    let onOpenProfile: (FriendProfileLink) -> Void
 
     @ViewState private var isHovering = false
 
@@ -269,9 +271,6 @@ private struct ActivityFriendRow: View {
     }
 
     private func openProfile() {
-        let fallback = "https://steamcommunity.com/profiles/\(friend.steamID64)"
-        if let url = URL(string: friend.summary?.profileURL ?? fallback) {
-            NSWorkspace.shared.open(url)
-        }
+        onOpenProfile(friend.profileLink)
     }
 }
