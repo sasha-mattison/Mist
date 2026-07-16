@@ -47,6 +47,7 @@ if [ "${MIST_SKIP_INSTALL:-0}" != "1" ]; then
     echo "Installing to ${INSTALL_PATH}…"
     rm -rf "$INSTALL_PATH"
     ditto "$APP_BUNDLE" "$INSTALL_PATH"
+    echo "Done: $APP_BUNDLE (installed at $INSTALL_PATH)"
+else
+    echo "Done: $APP_BUNDLE"
 fi
-
-echo "Done: $APP_BUNDLE (installed at $INSTALL_PATH)"
