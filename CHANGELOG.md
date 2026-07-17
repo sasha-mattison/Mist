@@ -4,6 +4,26 @@ Versions follow [semver](https://semver.org); the marketing version lives in
 the `VERSION` file and the build number is the git commit count, both stamped
 into the app bundle by `Scripts/build-app.sh`.
 
+## 0.5.0 — 2026-07-16
+
+- **Non-Steam apps and games** — a new "+" button in the Library adds any
+  app via a file picker; it shows up in the grid, launches directly (no
+  Steam involved), and can be removed from a context menu.
+- **Backlog roulette filters** — "What Should I Play?" can now be narrowed
+  to Installed Only or a specific Steam Collection before rolling; the pick
+  also persists across visits instead of re-randomizing every time, rolling
+  over automatically after a week (or on request).
+- **Friend achievement comparison** — a friend's profile now shows your
+  achievement progress side by side with theirs for your most-played games
+  in common.
+- **Badges**, a **ban/VAC status indicator**, and a **monthly playtime
+  goal** (tracked locally, since Steam's API has no monthly breakdown) with
+  progress shown in Profile ▸ Lifetime Stats.
+- **Settings export/import** — back up or move your theme, hotkey, and
+  notification preferences to another Mac.
+- **Siri Shortcuts / Spotlight** — "Launch \<game\>" now works as a system
+  Shortcut, no extra setup required.
+
 ## 0.4.0 — 2026-07-16
 
 - **In-app updates** — Mist now checks GitHub for new releases (once a day,
