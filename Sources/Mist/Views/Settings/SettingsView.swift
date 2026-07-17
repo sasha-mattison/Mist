@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Settings popup (sheet) with theme & colour customization plus account
 /// management. Changes apply live — the window root observes SettingsStore.
@@ -29,6 +30,7 @@ struct SettingsView: View {
     }
 
     @ViewState private var tab: Tab = .appearance
+    @ViewState private var backupError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -249,6 +251,15 @@ struct SettingsView: View {
                         set: { settings.notifyWishlistSales = $0 }
                     )
                 )
+                Divider()
+                effectsToggle(
+                    "Monthly playtime goal reached",
+                    subtitle: "When you hit the goal set in Profile ▸ Lifetime Stats.",
+                    isOn: Binding(
+                        get: { settings.notifyPlaytimeGoal },
+                        set: { settings.notifyPlaytimeGoal = $0 }
+                    )
+                )
             }
             .padding(14)
             .glassEffect(in: .rect(cornerRadius: 14))
@@ -456,6 +467,69 @@ struct SettingsView: View {
             identitySection
             localAccountsSection
             apiKeySection
+            backupSection
+        }
+    }
+
+    // MARK: - Backup
+
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Backup")
+                .font(.headline)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Settings")
+                            .font(.callout.weight(.medium))
+                        Text("Export theme, hotkey, and notification preferences to move to another Mac or back up before experimenting.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Export…", action: exportSettings)
+                    Button("Import…", action: importSettings)
+                }
+                if let backupError {
+                    Text(backupError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(14)
+            .glassEffect(in: .rect(cornerRadius: 14))
+        }
+    }
+
+    private func exportSettings() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Mist Settings.json"
+        panel.allowedContentTypes = [.json]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try settings.exportSettings()
+                try data.write(to: url)
+                backupError = nil
+            } catch {
+                backupError = error.localizedDescription
+            }
+        }
+    }
+
+    private func importSettings() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let data = try Data(contentsOf: url)
+                try settings.importSettings(from: data)
+                backupError = nil
+            } catch {
+                backupError = error.localizedDescription
+            }
         }
     }
 

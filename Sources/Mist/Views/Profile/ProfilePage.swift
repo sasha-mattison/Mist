@@ -68,6 +68,7 @@ struct ProfilePage: View {
                 statTiles
                 recentlyPlayedSection
                 mostPlayedSection
+                badgesSection
             }
             .padding(32)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,6 +102,9 @@ struct ProfilePage: View {
                     }
                     if let level = profile.steamLevel {
                         LevelBadge(level: level, accent: settings.accentColor)
+                    }
+                    if let banStatus = profile.banStatus, !banStatus.isClean {
+                        BanStatusBadge(status: banStatus)
                     }
                 }
 
@@ -269,6 +273,38 @@ struct ProfilePage: View {
             onOpenGame(item)
         } else {
             onOpenStoreItem(StoreAppLink(appID: appID, name: name))
+        }
+    }
+
+    // MARK: - Badges
+
+    /// Most-recently-earned first, capped so a badge-heavy account doesn't
+    /// fire dozens of simultaneous lazy name lookups (this VStack isn't
+    /// virtualized, so every row's `.task` runs as soon as the section
+    /// appears — same reasoning DLCRow's callers already lean on).
+    private var displayedBadges: [PlayerBadge] {
+        Array(profile.badges.sorted { ($0.completionDate ?? .distantPast) > ($1.completionDate ?? .distantPast) }.prefix(15))
+    }
+
+    @ViewBuilder
+    private var badgesSection: some View {
+        if !profile.badges.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Badges")
+                if profile.badges.count > displayedBadges.count {
+                    Text("Showing \(displayedBadges.count) most recent of \(profile.badges.count).")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(displayedBadges.enumerated()), id: \.element.id) { index, badge in
+                        if index > 0 { Divider() }
+                        BadgeRow(badge: badge)
+                    }
+                }
+                .padding(10)
+                .glassEffect(in: .rect(cornerRadius: 14))
+            }
         }
     }
 

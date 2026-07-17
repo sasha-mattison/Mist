@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 enum LibrarySortOrder: String, CaseIterable, Identifiable {
     case name = "Name"
@@ -337,6 +339,32 @@ struct ContentView: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
+        }
+        ToolbarItem {
+            Button(action: addCustomApp) {
+                Label("Add Non-Steam Game", systemImage: "plus")
+            }
+            .help("Add a non-Steam game or app")
+        }
+    }
+
+    /// Non-Steam apps/games are launched directly (no steam:// scheme), so
+    /// only .app bundles are offered — RunningGameMonitor's "now playing"
+    /// detection relies on NSWorkspace's app-level launch notifications,
+    /// which raw executables never generate.
+    private func addCustomApp() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Add"
+        panel.message = "Choose an app or non-Steam game to add to your library."
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            let name = FileManager.default.displayName(atPath: url.path)
+                .replacingOccurrences(of: ".app", with: "")
+            store.addCustomApp(name: name, path: url)
         }
     }
 

@@ -10,6 +10,9 @@ struct PlaytimeStatsView: View {
     let onDismiss: () -> Void
     let onOpenGame: (GameLibraryItem) -> Void
 
+    @ViewState private var isEditingGoal = false
+    @ViewState private var goalHoursInput = ""
+
     private var playedItems: [GameLibraryItem] {
         items.filter { $0.playtimeForeverMinutes > 0 }
     }
@@ -45,6 +48,7 @@ struct PlaytimeStatsView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     statTiles
+                    monthlyGoalSection
                     mostPlayedSection
                 }
                 .padding(24)
@@ -93,6 +97,91 @@ struct PlaytimeStatsView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Monthly goal
+
+    private var monthlyGoalSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeader(title: "Monthly Playtime Goal")
+            VStack(alignment: .leading, spacing: 10) {
+                if let goalMinutes = PlaytimeGoalStore.shared.monthlyGoalMinutes {
+                    goalProgress(goalMinutes: goalMinutes)
+                } else {
+                    HStack {
+                        Text("Set a monthly playtime goal to track your progress.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Set Goal…") { isEditingGoal = true }
+                    }
+                }
+                if isEditingGoal {
+                    goalEditor
+                }
+            }
+            .padding(14)
+            .glassEffect(in: .rect(cornerRadius: 14))
+        }
+    }
+
+    private func goalProgress(goalMinutes: Int) -> some View {
+        let loggedMinutes = PlaytimeGoalStore.shared.minutesLoggedThisMonth
+        let fraction = min(Double(loggedMinutes) / Double(max(goalMinutes, 1)), 1)
+        let reached = loggedMinutes >= goalMinutes
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("\(Formatters.playtime(minutes: loggedMinutes)) of \(Formatters.playtime(minutes: goalMinutes)) this month")
+                    .font(.callout.weight(.medium))
+                Spacer()
+                Button("Edit") { startEditingGoal(currentMinutes: goalMinutes) }
+                    .controlSize(.small)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.quaternary)
+                    Capsule().fill(accent.gradient).frame(width: geo.size.width * fraction)
+                }
+            }
+            .frame(height: 8)
+            if reached {
+                Label("Goal reached!", systemImage: "checkmark.seal.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.green)
+            }
+            Text("Tracked from when you set this goal — Steam doesn't expose monthly playtime history.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var goalEditor: some View {
+        HStack {
+            TextField("Hours per month", text: $goalHoursInput)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 110)
+            Button("Save", action: saveGoal)
+                .disabled(Double(goalHoursInput) == nil)
+            Button("Cancel") { isEditingGoal = false }
+            if PlaytimeGoalStore.shared.monthlyGoalMinutes != nil {
+                Button("Remove", role: .destructive) {
+                    PlaytimeGoalStore.shared.monthlyGoalMinutes = nil
+                    isEditingGoal = false
+                }
+            }
+        }
+    }
+
+    private func startEditingGoal(currentMinutes: Int) {
+        goalHoursInput = String(format: "%g", Double(currentMinutes) / 60)
+        isEditingGoal = true
+    }
+
+    private func saveGoal() {
+        guard let hours = Double(goalHoursInput), hours > 0 else { return }
+        PlaytimeGoalStore.shared.monthlyGoalMinutes = Int(hours * 60)
+        isEditingGoal = false
     }
 
     @ViewBuilder

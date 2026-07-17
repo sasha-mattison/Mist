@@ -268,7 +268,11 @@ private struct QuickLaunchRow: View {
 
     var body: some View {
         Button {
-            GameLaunchService.launch(appID: item.appID)
+            if item.isCustom, let installURL = item.installURL {
+                GameLaunchService.launchCustomApp(at: installURL)
+            } else {
+                GameLaunchService.launch(appID: item.appID)
+            }
             onLaunch()
         } label: {
             HStack(spacing: 10) {

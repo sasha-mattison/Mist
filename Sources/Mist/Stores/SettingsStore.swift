@@ -143,6 +143,27 @@ struct ThemePreset: Identifiable {
     ]
 }
 
+/// Portable snapshot of `SettingsStore`'s user-facing preferences, written by
+/// `exportSettings()` / read by `importSettings(from:)`.
+struct SettingsExport: Codable {
+    let appearance: String
+    let accentPreset: String
+    let useCustomAccent: Bool
+    let customAccentRGBA: [Double]
+    let tintedBackground: Bool
+    let animationsEnabled: Bool
+    let hotKeyCode: UInt32?
+    let hotKeyModifiers: UInt32?
+    let notifySessionEnded: Bool
+    let notifyFriendOnline: Bool
+    let notifyGameUpdates: Bool
+    let notifyWishlistSales: Bool
+    let notifyPlaytimeGoal: Bool
+    let autoCheckForUpdates: Bool
+    let notifyAppUpdates: Bool
+    let launchAtLogin: Bool
+}
+
 /// User-tweakable appearance settings, persisted to UserDefaults. The window
 /// root applies `accentColor` via .tint and `colorScheme` via
 /// .preferredColorScheme, so every control follows these live.
@@ -162,6 +183,7 @@ final class SettingsStore {
         static let notifyFriendOnline = "settings.notifyFriendOnline"
         static let notifyGameUpdates = "settings.notifyGameUpdates"
         static let notifyWishlistSales = "settings.notifyWishlistSales"
+        static let notifyPlaytimeGoal = "settings.notifyPlaytimeGoal"
         static let autoCheckForUpdates = "settings.autoCheckForUpdates"
         static let notifyAppUpdates = "settings.notifyAppUpdates"
         static let lastUpdateCheckDate = "settings.lastUpdateCheckDate"
@@ -243,6 +265,13 @@ final class SettingsStore {
         }
     }
 
+    var notifyPlaytimeGoal: Bool {
+        didSet {
+            UserDefaults.standard.set(notifyPlaytimeGoal, forKey: Keys.notifyPlaytimeGoal)
+            if notifyPlaytimeGoal { NotificationService.shared.requestAuthorizationIfNeeded() }
+        }
+    }
+
     /// Whether Mist itself should periodically check GitHub for a newer
     /// release. On by default — unlike the notification toggles above, this
     /// isn't a system permission prompt, just a background network poll.
@@ -291,6 +320,7 @@ final class SettingsStore {
         notifyFriendOnline = defaults.bool(forKey: Keys.notifyFriendOnline)
         notifyGameUpdates = defaults.bool(forKey: Keys.notifyGameUpdates)
         notifyWishlistSales = defaults.bool(forKey: Keys.notifyWishlistSales)
+        notifyPlaytimeGoal = defaults.bool(forKey: Keys.notifyPlaytimeGoal)
         autoCheckForUpdates = defaults.object(forKey: Keys.autoCheckForUpdates) as? Bool ?? true
         notifyAppUpdates = defaults.object(forKey: Keys.notifyAppUpdates) as? Bool ?? true
         lastUpdateCheckDate = defaults.object(forKey: Keys.lastUpdateCheckDate) as? Date
@@ -382,12 +412,77 @@ final class SettingsStore {
         animationsEnabled = true
     }
 
+    // MARK: - Export / import
+
+    /// Dumps user-facing preferences to a portable JSON blob, for backing up
+    /// or moving to another Mac. Deliberately excludes runtime bookkeeping
+    /// that isn't really a "preference" — `lastUpdateCheckDate` and
+    /// `skippedUpdateVersion` are tied to this machine's update-check
+    /// history, not something worth carrying across.
+    func exportSettings() throws -> Data {
+        let export = SettingsExport(
+            appearance: appearance.rawValue,
+            accentPreset: accentPreset.rawValue,
+            useCustomAccent: useCustomAccent,
+            customAccentRGBA: Self.colorComponents(customAccent),
+            tintedBackground: tintedBackground,
+            animationsEnabled: animationsEnabled,
+            hotKeyCode: hotKeyCode,
+            hotKeyModifiers: hotKeyModifiers,
+            notifySessionEnded: notifySessionEnded,
+            notifyFriendOnline: notifyFriendOnline,
+            notifyGameUpdates: notifyGameUpdates,
+            notifyWishlistSales: notifyWishlistSales,
+            notifyPlaytimeGoal: notifyPlaytimeGoal,
+            autoCheckForUpdates: autoCheckForUpdates,
+            notifyAppUpdates: notifyAppUpdates,
+            launchAtLogin: launchAtLogin
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try encoder.encode(export)
+    }
+
+    /// Applies a previously-exported blob, going through the same setters
+    /// (and thus the same `didSet` persistence / side effects, e.g.
+    /// re-registering the hotkey or requesting notification authorization)
+    /// as if the user had changed each one by hand.
+    func importSettings(from data: Data) throws {
+        let export = try JSONDecoder().decode(SettingsExport.self, from: data)
+        appearance = AppearanceMode(rawValue: export.appearance) ?? appearance
+        accentPreset = AccentPreset(rawValue: export.accentPreset) ?? accentPreset
+        useCustomAccent = export.useCustomAccent
+        if export.customAccentRGBA.count == 4 {
+            customAccent = Color(
+                .sRGB,
+                red: export.customAccentRGBA[0],
+                green: export.customAccentRGBA[1],
+                blue: export.customAccentRGBA[2],
+                opacity: export.customAccentRGBA[3]
+            )
+        }
+        tintedBackground = export.tintedBackground
+        animationsEnabled = export.animationsEnabled
+        notifySessionEnded = export.notifySessionEnded
+        notifyFriendOnline = export.notifyFriendOnline
+        notifyGameUpdates = export.notifyGameUpdates
+        notifyWishlistSales = export.notifyWishlistSales
+        notifyPlaytimeGoal = export.notifyPlaytimeGoal
+        autoCheckForUpdates = export.autoCheckForUpdates
+        notifyAppUpdates = export.notifyAppUpdates
+        setHotKey(keyCode: export.hotKeyCode, modifiers: export.hotKeyModifiers)
+        setLaunchAtLogin(export.launchAtLogin)
+    }
+
     // MARK: - Color persistence (sRGB components in UserDefaults)
 
     private static func saveColor(_ color: Color, forKey key: String) {
-        guard let srgb = NSColor(color).usingColorSpace(.sRGB) else { return }
-        let components = [srgb.redComponent, srgb.greenComponent, srgb.blueComponent, srgb.alphaComponent]
-        UserDefaults.standard.set(components.map(Double.init), forKey: key)
+        UserDefaults.standard.set(colorComponents(color), forKey: key)
+    }
+
+    private static func colorComponents(_ color: Color) -> [Double] {
+        guard let srgb = NSColor(color).usingColorSpace(.sRGB) else { return [0, 0, 0, 1] }
+        return [srgb.redComponent, srgb.greenComponent, srgb.blueComponent, srgb.alphaComponent]
     }
 
     private static func loadColor(forKey key: String) -> Color? {

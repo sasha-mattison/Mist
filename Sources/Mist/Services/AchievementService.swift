@@ -33,7 +33,9 @@ actor AchievementService {
     /// Full progress list for one app, or nil if it has no achievements at
     /// all (or the schema couldn't be resolved). Player-achieved state is
     /// simply omitted — not surfaced as an error — when the profile's game
-    /// details are private; every achievement just reads as locked.
+    /// details are private; every achievement just reads as locked. Suitable
+    /// for the signed-in user's own profile, where a lenient "reads as
+    /// locked" fallback beats disappearing entirely on a transient error.
     func progress(appID: Int, steamID64: String, apiKey: String) async -> [AchievementProgress]? {
         guard let definitions = await schema(appID: appID, apiKey: apiKey), !definitions.isEmpty else {
             return nil
@@ -41,7 +43,36 @@ actor AchievementService {
 
         async let playerAchieved = fetchPlayerAchievements(appID: appID, steamID64: steamID64, apiKey: apiKey)
         async let percents = globalPercentages(appID: appID)
-        let (achieved, globalPercent) = await (playerAchieved, percents)
+        let (achieved, globalPercent) = await (playerAchieved ?? [:], percents)
+
+        return definitions.map { definition in
+            let unlocked = achieved[definition.apiName]
+            return AchievementProgress(
+                definition: definition,
+                achieved: unlocked?.achieved ?? false,
+                unlockDate: unlocked?.unlockDate,
+                globalPercent: globalPercent[definition.apiName]
+            )
+        }
+    }
+
+    /// Like `progress`, but returns nil — instead of a list that reads as
+    /// "0 unlocked" — when the player's own achievement data couldn't be
+    /// fetched at all (private profile, no recorded stats for this app,
+    /// transient error). `progress`'s lenient fallback is right for the
+    /// signed-in user's own profile; it's actively misleading when comparing
+    /// against someone else, where "0 unlocked" and "couldn't tell" need to
+    /// stay distinguishable so a fetch failure doesn't masquerade as a real
+    /// (and wrong) result.
+    func verifiedProgress(appID: Int, steamID64: String, apiKey: String) async -> [AchievementProgress]? {
+        guard let definitions = await schema(appID: appID, apiKey: apiKey), !definitions.isEmpty else {
+            return nil
+        }
+
+        async let playerAchieved = fetchPlayerAchievements(appID: appID, steamID64: steamID64, apiKey: apiKey)
+        async let percents = globalPercentages(appID: appID)
+        guard let achieved = await playerAchieved else { return nil }
+        let globalPercent = await percents
 
         return definitions.map { definition in
             let unlocked = achieved[definition.apiName]
@@ -96,11 +127,15 @@ actor AchievementService {
 
     // MARK: - Player unlock state (fetched fresh every call, not cached)
 
+    /// nil means the fetch itself failed (private profile, no stats for
+    /// this app, transient error) — distinct from a successful fetch that
+    /// happens to show every achievement locked, which Steam still returns
+    /// as a full (non-empty) entry per achievement with `achieved: 0`.
     private func fetchPlayerAchievements(
         appID: Int,
         steamID64: String,
         apiKey: String
-    ) async -> [String: PlayerAchievement] {
+    ) async -> [String: PlayerAchievement]? {
         var components = URLComponents(string: "https://api.steampowered.com/ISteamUserStats/GetPlayerAchievements/v1/")!
         components.queryItems = [
             URLQueryItem(name: "key", value: apiKey),
@@ -114,9 +149,7 @@ actor AchievementService {
               let decoded = try? JSONDecoder().decode(GetPlayerAchievementsResponse.self, from: data),
               decoded.playerstats.success,
               let achievements = decoded.playerstats.achievements else {
-            // Private profile / no stats for this app — everything reads
-            // locked rather than surfacing an error.
-            return [:]
+            return nil
         }
         return Dictionary(uniqueKeysWithValues: achievements.map { ($0.apiName, $0) })
     }

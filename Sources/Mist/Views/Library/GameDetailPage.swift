@@ -60,6 +60,16 @@ struct GameDetailPage: View {
             if playing { isLaunching = false }
         }
         .task(id: item.appID) {
+            guard !item.isCustom else {
+                // No Steam data exists for these at all — skip every
+                // storefront/achievement/review fetch and just show the
+                // app's own icon in place of hero artwork.
+                if let installURL = item.installURL {
+                    heroArtwork = GameLaunchService.fileIcon(for: installURL)
+                }
+                isLoadingDetails = false
+                return
+            }
             async let hero = ArtworkLoader.shared.heroImage(for: item.appID)
             async let details = SteamStoreClient.shared.details(for: item.appID)
             async let reviews = SteamStoreClient.shared.reviewSummary(for: item.appID)
@@ -176,19 +186,33 @@ struct GameDetailPage: View {
                 .controlSize(.extraLarge)
             }
 
-            Button {
-                GameLaunchService.openStorePage(appID: item.appID)
-            } label: {
-                Label("Store Page", systemImage: "cart")
+            if currentItem.isCustom {
+                Button(role: .destructive) {
+                    store.removeCustomApp(id: item.appID)
+                } label: {
+                    Label("Remove from Library", systemImage: "trash")
+                }
+                .buttonStyle(.glass)
+                .controlSize(.extraLarge)
+            } else {
+                Button {
+                    GameLaunchService.openStorePage(appID: item.appID)
+                } label: {
+                    Label("Store Page", systemImage: "cart")
+                }
+                .buttonStyle(.glass)
+                .controlSize(.extraLarge)
             }
-            .buttonStyle(.glass)
-            .controlSize(.extraLarge)
         }
     }
 
     private func launch() {
         guard !isPlaying, !isLaunching else { return }
-        GameLaunchService.launch(appID: item.appID)
+        if currentItem.isCustom, let installURL = currentItem.installURL {
+            GameLaunchService.launchCustomApp(at: installURL)
+        } else {
+            GameLaunchService.launch(appID: item.appID)
+        }
         isLaunching = true
         Task {
             try? await Task.sleep(for: .seconds(10))
@@ -422,7 +446,9 @@ struct GameDetailPage: View {
                 if let platforms = storeDetails?.platforms, !platforms.names.isEmpty {
                     InfoCell(label: "Platforms", value: platforms.names.joined(separator: ", "))
                 }
-                InfoCell(label: "App ID", value: "\(item.appID)")
+                if !currentItem.isCustom {
+                    InfoCell(label: "App ID", value: "\(item.appID)")
+                }
                 if let installURL = currentItem.installURL {
                     InfoCell(label: "Install Location", value: installURL.path)
                 }

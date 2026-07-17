@@ -12,7 +12,10 @@ struct StorageManagerView: View {
     let onDismiss: () -> Void
 
     private var installed: [GameLibraryItem] {
-        items.filter(\.isInstalled).sorted { $0.sizeOnDisk > $1.sizeOnDisk }
+        // Custom (non-Steam) entries are excluded: their size isn't measured
+        // (would always rank as 0 bytes), so they'd just be dead weight in a
+        // view that's specifically about ranking by disk usage.
+        items.filter { $0.isInstalled && !$0.isCustom }.sorted { $0.sizeOnDisk > $1.sizeOnDisk }
     }
 
     private var totalBytes: Int64 {

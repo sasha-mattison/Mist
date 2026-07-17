@@ -64,6 +64,15 @@ final class NotificationService {
         )
     }
 
+    func notifyPlaytimeGoalReached(minutes: Int) {
+        guard settings?.notifyPlaytimeGoal == true else { return }
+        post(
+            id: "playtime-goal.\(Formatters.playtime(minutes: minutes))",
+            title: "Monthly playtime goal reached",
+            body: "You've played \(Formatters.playtime(minutes: minutes)) this month."
+        )
+    }
+
     func notifyUpdateAvailable(version: String) {
         guard settings?.notifyAppUpdates == true else { return }
         post(

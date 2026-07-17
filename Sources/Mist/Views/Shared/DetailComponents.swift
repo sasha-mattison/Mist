@@ -101,6 +101,44 @@ struct LevelBadge: View {
     }
 }
 
+/// Trust indicator shown next to the identity header — only renders
+/// something when the account actually has a VAC/game/community ban;
+/// `PlayerBanStatus.isClean` guards call sites so a clean record just shows
+/// nothing rather than a reassuring badge nobody needs.
+struct BanStatusBadge: View {
+    let status: PlayerBanStatus
+
+    private var summary: String {
+        if status.vacBanned { return "VAC Banned" }
+        if status.numberOfGameBans > 0 { return "Game Banned" }
+        if status.communityBanned { return "Community Banned" }
+        return "Trade Banned"
+    }
+
+    private var detail: String {
+        var parts: [String] = []
+        if status.vacBanned {
+            parts.append("\(status.numberOfVACBans) VAC ban\(status.numberOfVACBans == 1 ? "" : "s")")
+        }
+        if status.numberOfGameBans > 0 {
+            parts.append("\(status.numberOfGameBans) game ban\(status.numberOfGameBans == 1 ? "" : "s")")
+        }
+        if status.communityBanned { parts.append("Community banned") }
+        if status.daysSinceLastBan > 0 { parts.append("last ban \(status.daysSinceLastBan) days ago") }
+        return parts.isEmpty ? "Restricted trading" : parts.joined(separator: " · ")
+    }
+
+    var body: some View {
+        Label(summary, systemImage: "exclamationmark.shield.fill")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(Color.red.gradient))
+            .help(detail)
+    }
+}
+
 /// One capsule in a "Recently Played" horizontal rail, shared by
 /// ProfilePage (the signed-in user) and FriendProfilePage.
 struct RecentGameCard: View {
@@ -317,6 +355,62 @@ struct DLCRow: View {
         .padding(.vertical, 4)
         .task(id: appID) {
             details = await SteamStoreClient.shared.details(for: appID)
+        }
+    }
+}
+
+/// One badge from GetBadges: game trading-card badges lazily resolve their
+/// game's name the same way DLCRow does; special/community badges (no
+/// appid) fall back to a generic label since Steam's API has no display-name
+/// lookup for those.
+struct BadgeRow: View {
+    let badge: PlayerBadge
+
+    @ViewState private var details: GameDetails?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "seal.fill")
+                .foregroundStyle(.yellow)
+                .font(.title3)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Group {
+                    if let appID = badge.appID {
+                        if let details {
+                            Text(details.name ?? "App \(appID)")
+                        } else {
+                            Text("App \(appID)")
+                                .redacted(reason: .placeholder)
+                        }
+                    } else {
+                        Text("Special Badge")
+                    }
+                }
+                .font(.callout)
+                .lineLimit(1)
+
+                if let date = badge.completionDate {
+                    Text("Earned \(date.formatted(date: .abbreviated, time: .omitted))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if badge.level > 1 {
+                Text("Level \(badge.level)")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 4)
+        .task(id: badge.appID) {
+            if let appID = badge.appID {
+                details = await SteamStoreClient.shared.details(for: appID)
+            }
         }
     }
 }

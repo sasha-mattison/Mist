@@ -20,8 +20,12 @@ struct FriendProfilePage: View {
     @ViewState private var steamLevel: Int?
     @ViewState private var recentGames: [RecentGame] = []
     @ViewState private var ownedGames: [OwnedGame] = []
+    @ViewState private var banStatus: PlayerBanStatus?
     @ViewState private var isLoading = true
     @ViewState private var error: String?
+    @ViewState private var achievementComparisons: [AchievementComparisonEntry] = []
+    @ViewState private var isLoadingAchievementComparison = false
+    @ViewState private var hasAttemptedAchievementComparison = false
 
     private var effects: Bool { settings.animationsEnabled }
 
@@ -86,15 +90,61 @@ struct FriendProfilePage: View {
             async let level = client.getSteamLevel(steamID64: link.steamID64)
             async let recent = client.getRecentlyPlayedGames(steamID64: link.steamID64)
             async let owned = client.getOwnedGames(steamID64: link.steamID64)
-            let (fetchedSummaries, fetchedLevel, fetchedRecent, fetchedOwned) = try await (summaries, level, recent, owned)
+            async let bans = client.getPlayerBans(steamIDs: [link.steamID64])
+            let (fetchedSummaries, fetchedLevel, fetchedRecent, fetchedOwned, fetchedBans) =
+                try await (summaries, level, recent, owned, bans)
             summary = fetchedSummaries.first ?? summary
             steamLevel = fetchedLevel
             recentGames = fetchedRecent
             ownedGames = fetchedOwned
+            banStatus = fetchedBans.first
             error = nil
+            // Fired independently of the main load — achievement comparison
+            // needs its own round-trip per shared game, and shouldn't hold
+            // up the rest of the profile from rendering.
+            Task { await loadAchievementComparisons() }
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Compares achievement progress for the (up to 5) shared games the
+    /// friend has played most, mirroring how `recommendations` bounds itself
+    /// to a small, playtime-ranked slice rather than fetching for everyone.
+    private func loadAchievementComparisons() async {
+        guard let apiKey = KeychainService.loadAPIKey(), let yourSteamID64 = store.activeSteamID64 else { return }
+        let candidates = Array(
+            ownedGames
+                .filter { yourOwnedAppIDs.contains($0.appid) && $0.playtimeForeverMinutes > 0 }
+                .sorted { $0.playtimeForeverMinutes > $1.playtimeForeverMinutes }
+                .prefix(5)
+        )
+        guard !candidates.isEmpty else { return }
+
+        isLoadingAchievementComparison = true
+        hasAttemptedAchievementComparison = true
+        defer { isLoadingAchievementComparison = false }
+
+        var results: [AchievementComparisonEntry] = []
+        for game in candidates {
+            // verifiedProgress (not progress) for both sides — a fetch that
+            // failed for either of you must be excluded, not rendered as a
+            // confident (and possibly wrong) 0, since `progress`'s lenient
+            // "reads as locked" fallback would make a failed fetch for the
+            // friend indistinguishable from them genuinely having unlocked
+            // nothing.
+            async let theirs = AchievementService.shared.verifiedProgress(appID: game.appid, steamID64: link.steamID64, apiKey: apiKey)
+            async let yours = AchievementService.shared.verifiedProgress(appID: game.appid, steamID64: yourSteamID64, apiKey: apiKey)
+            guard let theirProgress = await theirs, let yourProgress = await yours else { continue }
+            results.append(AchievementComparisonEntry(
+                appID: game.appid,
+                name: game.name ?? "App \(game.appid)",
+                yourUnlocked: yourProgress.filter(\.achieved).count,
+                theirUnlocked: theirProgress.filter(\.achieved).count,
+                total: theirProgress.count
+            ))
+        }
+        achievementComparisons = results
     }
 
     // MARK: - Content
@@ -109,6 +159,7 @@ struct FriendProfilePage: View {
                 recentlyPlayedSection
                 mostPlayedSection
                 libraryComparisonSection
+                achievementComparisonSection
                 if isPrivate {
                     privacyNote
                 }
@@ -155,6 +206,9 @@ struct FriendProfilePage: View {
                     }
                     if let steamLevel {
                         LevelBadge(level: steamLevel, accent: settings.accentColor)
+                    }
+                    if let banStatus, !banStatus.isClean {
+                        BanStatusBadge(status: banStatus)
                     }
                 }
 
@@ -380,6 +434,77 @@ struct FriendProfilePage: View {
                 }
             }
         }
+    }
+    // MARK: - Achievement comparison
+
+    @ViewBuilder
+    private var achievementComparisonSection: some View {
+        if isLoadingAchievementComparison && achievementComparisons.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Achievement Comparison")
+                ProgressView().controlSize(.small)
+            }
+        } else if !achievementComparisons.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Achievement Comparison")
+                VStack(spacing: 6) {
+                    ForEach(achievementComparisons) { entry in
+                        AchievementComparisonRow(entry: entry) {
+                            open(appID: entry.appID, name: entry.name)
+                        }
+                    }
+                }
+            }
+        } else if hasAttemptedAchievementComparison && !isLoadingAchievementComparison {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionHeader(title: "Achievement Comparison")
+                Text("Achievement data isn't available for your shared games right now — this can happen if achievement stats for this account are private.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+/// One shared game's achievement progress, you vs. them — bounded to the
+/// friend's 5 most-played shared games by `loadAchievementComparisons`.
+private struct AchievementComparisonEntry: Identifiable {
+    let appID: Int
+    let name: String
+    let yourUnlocked: Int
+    let theirUnlocked: Int
+    let total: Int
+
+    var id: Int { appID }
+}
+
+private struct AchievementComparisonRow: View {
+    let entry: AchievementComparisonEntry
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack {
+                Text(entry.name)
+                    .font(.callout)
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                Text("You \(entry.yourUnlocked)/\(entry.total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text("Them \(entry.theirUnlocked)/\(entry.total)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.primary.opacity(0.04))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

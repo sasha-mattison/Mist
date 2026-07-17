@@ -49,4 +49,20 @@ enum GameLaunchService {
         guard let url = URL(string: "steam://friends/message/\(steamID64)") else { return }
         NSWorkspace.shared.open(url)
     }
+
+    /// Opens a user-added non-Steam app/game directly — no steam:// scheme
+    /// involved, since these live entirely outside Steam.
+    static func launchCustomApp(at path: URL) {
+        NSWorkspace.shared.open(path)
+    }
+
+    /// Best-effort large icon for a custom library entry, used in place of
+    /// Steam CDN artwork (which doesn't exist for these). NSWorkspace's icon
+    /// defaults to a small size; bumping it up pulls from the bundle's
+    /// largest available icon representation instead of a blurry upscale.
+    static func fileIcon(for url: URL) -> NSImage {
+        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        icon.size = NSSize(width: 512, height: 512)
+        return icon
+    }
 }

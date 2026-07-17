@@ -53,7 +53,11 @@ struct GameCardView: View {
         .contextMenu { contextMenuItems }
         .entranceEffect(index: index, enabled: effects)
         .task(id: item.appID) {
-            artwork = await ArtworkLoader.shared.image(for: item.appID)
+            if item.isCustom, let installURL = item.installURL {
+                artwork = GameLaunchService.fileIcon(for: installURL)
+            } else {
+                artwork = await ArtworkLoader.shared.image(for: item.appID)
+            }
         }
     }
 
@@ -67,7 +71,11 @@ struct GameCardView: View {
 
     private func launch() {
         guard !isPlaying, !isLaunching else { return }
-        GameLaunchService.launch(appID: item.appID)
+        if item.isCustom, let installURL = item.installURL {
+            GameLaunchService.launchCustomApp(at: installURL)
+        } else {
+            GameLaunchService.launch(appID: item.appID)
+        }
         isLaunching = true
         Task {
             // RunningGameMonitor flips isPlaying when the process appears;
@@ -178,8 +186,14 @@ struct GameCardView: View {
                 NSWorkspace.shared.activateFileViewerSelecting([installURL])
             }
         }
-        Button("Steam Store Page", systemImage: "cart") {
-            GameLaunchService.openStorePage(appID: item.appID)
+        if item.isCustom {
+            Button("Remove from Library", systemImage: "trash", role: .destructive) {
+                store.removeCustomApp(id: item.appID)
+            }
+        } else {
+            Button("Steam Store Page", systemImage: "cart") {
+                GameLaunchService.openStorePage(appID: item.appID)
+            }
         }
     }
 

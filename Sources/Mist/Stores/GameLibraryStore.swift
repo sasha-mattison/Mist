@@ -33,6 +33,10 @@ final class GameLibraryStore {
     /// never looked up here.
     private(set) var macSupportByAppID: [Int: Bool] = [:]
     private(set) var isResolvingMacSupport = false
+    /// User-added non-Steam apps/games, persisted independently of anything
+    /// Steam-derived (see CustomApp) — genuine user data, not a rebuildable
+    /// cache, so this lives in Application Support rather than Caches.
+    private(set) var customApps: [CustomApp] = []
 
     private var macSupportTask: Task<Void, Never>?
 
@@ -41,6 +45,14 @@ final class GameLibraryStore {
 
     private static let signedInDefaultsKey = "signedInSteamID64"
     private static let preferredLocalDefaultsKey = "preferredLocalSteamID64"
+
+    private static func customAppsFileURL() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let dir = base.appendingPathComponent("Mist", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("custom-apps.json")
+    }
 
     init() {
         signedInSteamID64 = UserDefaults.standard.string(forKey: Self.signedInDefaultsKey)
@@ -51,6 +63,34 @@ final class GameLibraryStore {
         } else {
             dataService = nil
             isSteamFound = false
+        }
+        if let data = try? Data(contentsOf: Self.customAppsFileURL()),
+           let stored = try? JSONDecoder().decode([CustomApp].self, from: data) {
+            customApps = stored
+        }
+    }
+
+    /// Adds a user-picked non-Steam app/game to the library. `path` should
+    /// point at an .app bundle — RunningGameMonitor's "now playing" detection
+    /// only observes NSWorkspace's app-level launch/terminate notifications,
+    /// which raw (non-bundle) executables don't participate in.
+    func addCustomApp(name: String, path: URL) {
+        guard !customApps.contains(where: { $0.path == path.path }) else { return }
+        let nextID = (customApps.map(\.id).min() ?? 0) - 1
+        customApps.append(CustomApp(id: nextID, name: name, path: path.path, addedDate: Date()))
+        saveCustomApps()
+        rebuildLibraryItems()
+    }
+
+    func removeCustomApp(id: Int) {
+        customApps.removeAll { $0.id == id }
+        saveCustomApps()
+        rebuildLibraryItems()
+    }
+
+    private func saveCustomApps() {
+        if let data = try? JSONEncoder().encode(customApps) {
+            try? data.write(to: Self.customAppsFileURL())
         }
     }
 
@@ -220,7 +260,8 @@ final class GameLibraryStore {
                 playtimeForeverMinutes: owned?.playtimeForeverMinutes ?? 0,
                 playtime2WeeksMinutes: owned?.playtime2WeeksMinutes ?? 0,
                 installDir: app.installDir,
-                libraryPath: app.libraryPath
+                libraryPath: app.libraryPath,
+                customAppPath: nil
             )
         }
 
@@ -234,7 +275,23 @@ final class GameLibraryStore {
                 playtimeForeverMinutes: game.playtimeForeverMinutes,
                 playtime2WeeksMinutes: game.playtime2WeeksMinutes ?? 0,
                 installDir: nil,
-                libraryPath: nil
+                libraryPath: nil,
+                customAppPath: nil
+            )
+        }
+
+        for app in customApps {
+            itemsByAppID[app.id] = GameLibraryItem(
+                appID: app.id,
+                name: app.name,
+                isInstalled: true,
+                sizeOnDisk: 0,
+                lastPlayed: nil,
+                playtimeForeverMinutes: 0,
+                playtime2WeeksMinutes: 0,
+                installDir: nil,
+                libraryPath: nil,
+                customAppPath: app.url
             )
         }
 

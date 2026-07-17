@@ -79,6 +79,7 @@ final class RunningGameMonitor {
            let endedItem = store.libraryItems.first(where: { $0.appID == previousAppID }) {
             let minutes = Int(Date().timeIntervalSince(previousSince) / 60)
             NotificationService.shared.notifySessionEnded(gameName: endedItem.name, minutes: minutes)
+            PlaytimeGoalStore.shared.logSession(minutes: minutes)
         }
         store.setRunningAppID(nil)
     }

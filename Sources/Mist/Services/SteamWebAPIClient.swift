@@ -87,6 +87,40 @@ struct SteamWebAPIClient {
         return decoded.response.games ?? []
     }
 
+    func getBadges(steamID64: String) async throws -> [PlayerBadge] {
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("IPlayerService/GetBadges/v1/"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "key", value: apiKey),
+            URLQueryItem(name: "steamid", value: steamID64)
+        ]
+        let (data, response) = try await session.data(from: components.url!)
+        try Self.validate(response)
+        let decoded = try JSONDecoder().decode(GetBadgesResponse.self, from: data)
+        return decoded.response.badges ?? []
+    }
+
+    /// Unlike the other endpoints here, the response isn't nested under
+    /// "response" — Steam returns `{"players": [...]}` directly at the top
+    /// level for this one.
+    func getPlayerBans(steamIDs: [String]) async throws -> [PlayerBanStatus] {
+        guard !steamIDs.isEmpty else { return [] }
+        var components = URLComponents(
+            url: baseURL.appendingPathComponent("ISteamUser/GetPlayerBans/v1/"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "key", value: apiKey),
+            URLQueryItem(name: "steamids", value: steamIDs.joined(separator: ","))
+        ]
+        let (data, response) = try await session.data(from: components.url!)
+        try Self.validate(response)
+        let decoded = try JSONDecoder().decode(GetPlayerBansResponse.self, from: data)
+        return decoded.players
+    }
+
     private static func validate(_ response: URLResponse) throws {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200...299).contains(http.statusCode) else {
@@ -189,5 +223,73 @@ private struct GetPlayerSummariesResponse: Decodable {
 
     struct Inner: Decodable {
         let players: [PlayerSummary]
+    }
+}
+
+/// One entry from ISteamUser/GetPlayerBans — VAC/game/community/trade-ban
+/// status. Shown as a trust indicator only when something's actually
+/// flagged; a clean record intentionally renders nothing rather than a
+/// reassuring badge nobody needs.
+struct PlayerBanStatus: Decodable {
+    let steamID: String
+    let communityBanned: Bool
+    let vacBanned: Bool
+    let numberOfVACBans: Int
+    let numberOfGameBans: Int
+    let daysSinceLastBan: Int
+    let economyBan: String
+
+    enum CodingKeys: String, CodingKey {
+        case steamID = "SteamId"
+        case communityBanned = "CommunityBanned"
+        case vacBanned = "VACBanned"
+        case numberOfVACBans = "NumberOfVACBans"
+        case numberOfGameBans = "NumberOfGameBans"
+        case daysSinceLastBan = "DaysSinceLastBan"
+        case economyBan = "EconomyBan"
+    }
+
+    var isClean: Bool {
+        !vacBanned && !communityBanned && numberOfGameBans == 0 && economyBan == "none"
+    }
+}
+
+private struct GetPlayerBansResponse: Decodable {
+    let players: [PlayerBanStatus]
+}
+
+/// One entry from IPlayerService/GetBadges. `appID` is present for
+/// game-specific (trading card) badges and absent for special/community
+/// badges (e.g. sale event badges) — Steam's API has no display-name lookup
+/// for those, so callers fall back to a generic label for them.
+struct PlayerBadge: Decodable, Identifiable {
+    let badgeID: Int
+    let level: Int
+    let completionTime: Int
+    let xp: Int
+    let appID: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case badgeID = "badgeid"
+        case level
+        case completionTime = "completion_time"
+        case xp
+        case appID = "appid"
+    }
+
+    /// Not globally unique across all badge kinds (badgeid alone can repeat
+    /// per-game), so pair with appid where present.
+    var id: String { "\(badgeID)-\(appID ?? 0)" }
+
+    var completionDate: Date? {
+        completionTime > 0 ? Date(timeIntervalSince1970: TimeInterval(completionTime)) : nil
+    }
+}
+
+private struct GetBadgesResponse: Decodable {
+    let response: Inner
+
+    struct Inner: Decodable {
+        let badges: [PlayerBadge]?
     }
 }
