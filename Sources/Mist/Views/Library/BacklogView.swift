@@ -9,6 +9,7 @@ struct BacklogView: View {
     let onDismiss: () -> Void
 
     @Environment(GameLibraryStore.self) private var store
+    @Environment(SettingsStore.self) private var settings
     @ViewState private var pick: GameLibraryItem?
     @ViewState private var isRolling = false
     @ViewState private var showInstalledOnly = false
@@ -58,6 +59,8 @@ struct BacklogView: View {
             footer
         }
         .frame(width: 560, height: 620)
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(settings.accentColor)
         .onAppear {
             guard pick == nil else { return }
             if let persisted = PlaytimeGoalStore.shared.currentBacklogPick(in: backlog) {

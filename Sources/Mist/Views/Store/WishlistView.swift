@@ -10,6 +10,7 @@ struct WishlistView: View {
     let onSignIn: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(SettingsStore.self) private var settings
     @ViewState private var items: [WishlistItem] = []
     @ViewState private var isLoading = true
     @ViewState private var error: String?
@@ -23,6 +24,8 @@ struct WishlistView: View {
             footer
         }
         .frame(width: 560, height: 620)
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(settings.accentColor)
         .task {
             guard steamID64 != nil else { return }
             await load()

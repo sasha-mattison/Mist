@@ -5,6 +5,7 @@ struct APIKeySetupView: View {
     let store: GameLibraryStore
     let onDismiss: () -> Void
 
+    @Environment(SettingsStore.self) private var settings
     @ViewState private var apiKeyInput = ""
     @ViewState private var isSaving = false
     @ViewState private var errorMessage: String?
@@ -47,6 +48,8 @@ struct APIKeySetupView: View {
         }
         .padding(40)
         .frame(minWidth: 720, minHeight: 480)
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(settings.accentColor)
     }
 
     private func save() {

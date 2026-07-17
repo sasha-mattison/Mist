@@ -11,6 +11,8 @@ struct StorageManagerView: View {
     let onOpenGame: (GameLibraryItem) -> Void
     let onDismiss: () -> Void
 
+    @Environment(SettingsStore.self) private var settings
+
     private var installed: [GameLibraryItem] {
         // Custom (non-Steam) entries are excluded: their size isn't measured
         // (would always rank as 0 bytes), so they'd just be dead weight in a
@@ -40,6 +42,7 @@ struct StorageManagerView: View {
                             StorageRow(
                                 item: item,
                                 fraction: fraction(for: item),
+                                accent: settings.accentColor,
                                 onOpenGame: {
                                     onDismiss()
                                     onOpenGame(item)
@@ -54,6 +57,8 @@ struct StorageManagerView: View {
             footer
         }
         .frame(width: 560, height: 620)
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(settings.accentColor)
     }
 
     private func fraction(for item: GameLibraryItem) -> Double {
@@ -87,6 +92,7 @@ struct StorageManagerView: View {
 private struct StorageRow: View {
     let item: GameLibraryItem
     let fraction: Double
+    let accent: Color
     let onOpenGame: () -> Void
 
     var body: some View {
@@ -109,7 +115,7 @@ private struct StorageRow: View {
                     ZStack(alignment: .leading) {
                         Capsule().fill(.quaternary)
                         Capsule()
-                            .fill(Color.accentColor.gradient)
+                            .fill(accent.gradient)
                             .frame(width: geo.size.width * fraction)
                     }
                 }

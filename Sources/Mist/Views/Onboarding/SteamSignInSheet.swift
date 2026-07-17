@@ -8,6 +8,7 @@ struct SteamSignInSheet: View {
     let onDismiss: () -> Void
     let onNeedsAPIKey: () -> Void
 
+    @Environment(SettingsStore.self) private var settings
     @ViewState private var errorMessage: String?
     @ViewState private var isWaiting = false
     @ViewState private var signInTask: Task<Void, Never>?
@@ -62,6 +63,8 @@ struct SteamSignInSheet: View {
         .padding(40)
         .frame(minWidth: 560, minHeight: 340)
         .onDisappear { signInTask?.cancel() }
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(settings.accentColor)
     }
 
     private func startSignIn(restart: Bool) {

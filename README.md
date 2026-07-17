@@ -94,7 +94,7 @@ VS Code launch configurations for plain debug/release binary runs are in
 - `VERSION` holds the marketing version (semver) — edit it to cut a release.
 - The build number is the git commit count at build time.
 - Both are stamped into the app's `Info.plist` by `Scripts/build-app.sh` and
-  shown in Settings' footer ("Mist 0.5.0 (10)").
+  shown in Settings' footer ("Mist 0.5.1 (11)").
 - Release history lives in [CHANGELOG.md](CHANGELOG.md).
 - `Scripts/release.sh` publishes a release: builds a `.dmg` and a `.zip`,
   extracts that version's `CHANGELOG.md` section as release notes, tags the

@@ -58,6 +58,8 @@ struct PlaytimeStatsView: View {
             footer
         }
         .frame(width: 560, height: 560)
+        // Sheets don't inherit .tint() from the presenting window on macOS.
+        .tint(accent)
     }
 
     private var header: some View {

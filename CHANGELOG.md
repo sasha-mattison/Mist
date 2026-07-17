@@ -4,6 +4,20 @@ Versions follow [semver](https://semver.org); the marketing version lives in
 the `VERSION` file and the build number is the git commit count, both stamped
 into the app bundle by `Scripts/build-app.sh`.
 
+## 0.5.1 — 2026-07-16
+
+- **Fixed: the accent colour wasn't reaching most of the app.** `.tint()` was
+  only ever applied to the main window and the menu bar popover — every
+  sheet (Settings, Backlog, Storage, Lifetime Stats, Wishlist, sign-in, API
+  key setup) is its own presentation on macOS and doesn't inherit it, so
+  every button, toggle, and progress bar inside them silently fell back to
+  the system accent color instead of the one actually picked in Settings.
+  This is also why Settings' own Preview looked broken — it was rendering
+  correctly, just always in the system color. Every sheet now carries the
+  chosen accent explicitly.
+- Also fixed `StorageManagerView`'s usage bars, which referenced the system
+  accent color directly (`Color.accentColor`) instead of Mist's setting.
+
 ## 0.5.0 — 2026-07-16
 
 - **Non-Steam apps and games** — a new "+" button in the Library adds any

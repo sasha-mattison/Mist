@@ -51,6 +51,12 @@ struct SettingsView: View {
             footer
         }
         .frame(width: 660, height: 620)
+        // Sheets don't inherit .tint() from the presenting window on macOS,
+        // so every .tint-driven control in here (including the Preview
+        // section, and the "In use" custom-colour label) would otherwise
+        // fall back to the system accent color instead of the one actually
+        // picked above.
+        .tint(settings.accentColor)
     }
 
     private var header: some View {
